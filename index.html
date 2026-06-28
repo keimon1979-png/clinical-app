@@ -1,0 +1,2070 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>臨床タスク管理</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --primary: #1a5f8a; --primary-l: #2980b9; --primary-d: #0d3a57;
+  --success: #16a34a; --warning: #d97706; --danger: #dc2626;
+  --g50:#f8f9fa; --g100:#f1f3f5; --g200:#e9ecef; --g300:#dee2e6;
+  --g400:#ced4da; --g500:#adb5bd; --g600:#6c757d; --g700:#495057; --g800:#343a40;
+}
+body { font-family:'Hiragino Sans','ヒラギノ角ゴ ProN','Meiryo',sans-serif; font-size:13px; background:var(--g100); color:var(--g800); height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+.app-header { height:50px; background:var(--primary); color:#fff; display:flex; align-items:center; padding:0 14px; gap:8px; flex-shrink:0; box-shadow:0 2px 6px rgba(0,0,0,.25); }
+.app-header h1 { font-size:15px; font-weight:700; }
+.hdr-clock { margin-left:auto; font-size:12px; opacity:.85; }
+.hdr-reset { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); color:#fff; padding:3px 9px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:600; }
+.hdr-reset:hover { background:rgba(255,255,255,.28); }
+.app-body { display:flex; flex:1; overflow:hidden; }
+.sidebar { width:200px; background:var(--primary-d); color:#fff; display:flex; flex-direction:column; flex-shrink:0; }
+.sb-head { padding:10px 11px; border-bottom:1px solid rgba(255,255,255,.12); display:flex; align-items:center; justify-content:space-between; }
+.sb-head span { font-size:11px; font-weight:700; opacity:.6; letter-spacing:.07em; }
+.btn-add-pt { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); color:#fff; padding:3px 9px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600; }
+.btn-add-pt:hover { background:rgba(255,255,255,.28); }
+.pt-list { flex:1; overflow-y:auto; padding:6px; }
+.pt-card { padding:8px 10px; border-radius:6px; cursor:pointer; margin-bottom:3px; border:1px solid transparent; transition:background .1s; }
+.pt-card:hover { background:rgba(255,255,255,.1); }
+.pt-card.active { background:rgba(255,255,255,.2); border-color:rgba(255,255,255,.3); }
+.pt-name { font-weight:700; font-size:13px; margin-bottom:2px; }
+.pt-meta { display:flex; align-items:center; justify-content:space-between; }
+.pt-room { font-size:11px; opacity:.6; }
+.task-badge { font-size:10px; background:var(--danger); color:#fff; padding:1px 5px; border-radius:10px; font-weight:700; }
+.task-badge.all-done { background:var(--success); }
+.task-badge.has-check { background:var(--warning); }
+.main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.pt-header { background:#fff; padding:9px 16px; border-bottom:1px solid var(--g200); display:flex; align-items:center; gap:8px; flex-shrink:0; min-height:46px; }
+.pt-header h2 { font-size:16px; font-weight:700; color:var(--primary); }
+.tag { padding:2px 7px; border-radius:3px; font-size:11px; }
+.tag-room { background:var(--g100); border:1px solid var(--g300); color:var(--g600); }
+.tag-diag { background:#e6f2fb; border:1px solid #b5d4ec; color:var(--primary); }
+.header-actions { margin-left:auto; display:flex; gap:5px; }
+.btn { padding:5px 11px; border-radius:4px; border:none; cursor:pointer; font-size:12px; font-weight:600; font-family:inherit; transition:all .12s; }
+.btn-primary { background:var(--primary); color:#fff; }
+.btn-primary:hover { background:var(--primary-l); }
+.btn-ghost { background:transparent; color:var(--g600); border:1px solid var(--g300); }
+.btn-ghost:hover { background:var(--g100); }
+.btn-sm { padding:3px 8px; font-size:11px; }
+.tabs { background:#fff; border-bottom:2px solid var(--g200); display:flex; flex-shrink:0; }
+.tab-btn { padding:9px 15px; border:none; background:none; cursor:pointer; font-size:12px; font-weight:600; color:var(--g600); border-bottom:2px solid transparent; margin-bottom:-2px; font-family:inherit; transition:color .1s; }
+.tab-btn:hover { color:var(--primary); }
+.tab-btn.active { color:var(--primary); border-bottom-color:var(--primary); }
+.tab-content { flex:1; overflow-y:auto; padding:14px 16px; }
+.empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#bbb; gap:10px; font-size:14px; }
+/* Tasks */
+.tasks-summary { background:#fff; border:1px solid var(--g200); border-radius:6px; padding:10px 14px; margin-bottom:12px; display:flex; align-items:center; gap:14px; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+.s-stat { text-align:center; }
+.s-num { font-size:22px; font-weight:700; line-height:1; }
+.s-lbl { font-size:10px; color:var(--g600); margin-top:2px; }
+.n-done { color:var(--success); } .n-check { color:var(--warning); } .n-pend { color:var(--g500); }
+.prog-bar { flex:1; }
+.prog-info { display:flex; justify-content:space-between; font-size:11px; color:var(--g600); margin-bottom:4px; }
+.prog-track { height:6px; background:var(--g200); border-radius:3px; overflow:hidden; }
+.prog-fill { height:100%; background:var(--success); border-radius:3px; transition:width .4s; }
+.cat-group { background:#fff; border:1px solid var(--g200); border-radius:8px; margin-bottom:9px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+.cat-hdr { display:flex; align-items:center; gap:9px; padding:9px 12px; cursor:pointer; background:var(--g50); user-select:none; }
+.cat-hdr:hover { background:var(--g100); }
+.cat-icon { width:24px; height:24px; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; flex-shrink:0; }
+.cat-title { font-weight:700; font-size:13px; flex:1; }
+.cat-count { font-size:11px; color:var(--g600); white-space:nowrap; }
+.cat-count.c-done { color:var(--success); font-weight:700; }
+.cat-count.c-check { color:var(--warning); font-weight:700; }
+.cat-arrow { font-size:9px; color:var(--g500); }
+.cat-body { padding:8px 12px 10px; border-top:1px solid var(--g200); }
+.task-item { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:5px; margin-bottom:3px; border:1px solid var(--g200); transition:background .1s; }
+.task-item:hover { background:var(--g50); }
+.task-item.s-done { opacity:.6; }
+.task-item.s-check { background:#fffbf0; border-color:#fde68a; }
+.status-btn { min-width:90px; padding:3px 7px; border-radius:4px; border:1px solid var(--g300); cursor:pointer; font-size:11px; font-weight:700; font-family:inherit; text-align:center; white-space:nowrap; flex-shrink:0; background:var(--g100); color:var(--g600); transition:all .1s; }
+.task-item.s-done .status-btn { background:#dcfce7; color:#15803d; border-color:#86efac; }
+.task-item.s-check .status-btn { background:#fef3c7; color:#b45309; border-color:#fcd34d; }
+.task-text { flex:1; font-size:12px; }
+.s-done .task-text { text-decoration:line-through; color:var(--g500); }
+.task-del { background:none; border:none; cursor:pointer; color:var(--g400); font-size:14px; padding:0 2px; flex-shrink:0; }
+.task-del:hover { color:var(--danger); }
+.add-inline { display:flex; gap:6px; align-items:center; margin-top:8px; padding-top:8px; border-top:1px dashed var(--g300); }
+.add-inline input { flex:1; padding:5px 8px; border:1px solid var(--g300); border-radius:4px; font-size:12px; font-family:inherit; }
+.add-inline input:focus { outline:none; border-color:var(--primary-l); }
+.tmpl-btn { font-size:11px; color:var(--primary); background:none; border:1px dashed var(--primary-l); border-radius:4px; padding:4px 8px; cursor:pointer; font-family:inherit; white-space:nowrap; }
+.tmpl-btn:hover { background:#e6f2fb; }
+.cat-empty { color:#bbb; font-size:12px; padding:4px 0; }
+/* Lab sub-nav */
+.lab-subnav { display:flex; gap:3px; margin-bottom:12px; background:#fff; border:1px solid var(--g200); border-radius:6px; padding:4px; }
+.lsn-btn { flex:1; padding:5px 6px; border:none; border-radius:4px; background:none; cursor:pointer; font-size:11px; font-weight:600; color:var(--g600); font-family:inherit; text-align:center; white-space:nowrap; transition:all .1s; }
+.lsn-btn.active { background:var(--primary); color:#fff; }
+.lsn-btn:hover:not(.active) { background:var(--g100); }
+/* Lab cards */
+.critical-alert { background:#fef2f2; border:2px solid var(--danger); border-radius:6px; padding:8px 13px; margin-bottom:12px; display:flex; align-items:center; gap:8px; animation:cpulse 2s infinite; }
+@keyframes cpulse { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.3)} 50%{box-shadow:0 0 0 5px rgba(220,38,38,0)} }
+.c-lbl { font-weight:700; color:var(--danger); white-space:nowrap; }
+.c-body { color:var(--danger); font-size:12px; }
+.lab-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px,1fr)); gap:8px; margin-bottom:14px; }
+.lab-card { background:var(--g50); border:1px solid var(--g200); border-radius:6px; padding:8px 10px; position:relative; }
+.lab-card.fH  { background:#fff5f5; border-color:#fca5a5; }
+.lab-card.fL  { background:#eff6ff; border-color:#93c5fd; }
+.lab-card.fHH { background:#fef2f2; border-color:var(--danger); box-shadow:0 0 0 2px rgba(220,38,38,.15); }
+.lab-card.fLL { background:#eff6ff; border-color:#1d4ed8; box-shadow:0 0 0 2px rgba(29,78,216,.15); }
+.lc-name { font-size:11px; font-weight:700; color:var(--g600); margin-bottom:2px; }
+.lc-val { font-size:20px; font-weight:700; color:var(--g800); }
+.lab-card.fH .lc-val,.lab-card.fHH .lc-val { color:var(--danger); }
+.lab-card.fL .lc-val,.lab-card.fLL .lc-val { color:#1d4ed8; }
+.lc-unit { font-size:11px; color:var(--g600); margin-left:3px; }
+.lc-flag { position:absolute; top:6px; right:6px; font-size:10px; font-weight:800; padding:1px 4px; border-radius:3px; }
+.fH  .lc-flag { background:#fca5a5; color:var(--danger); }
+.fL  .lc-flag { background:#93c5fd; color:#1d4ed8; }
+.fHH .lc-flag { background:var(--danger); color:#fff; }
+.fLL .lc-flag { background:#1d4ed8; color:#fff; }
+.lc-range { font-size:10px; color:var(--g400); margin-top:2px; }
+.lc-ts { font-size:10px; color:var(--g400); margin-top:2px; }
+.lc-del { position:absolute; bottom:4px; right:5px; background:none; border:none; cursor:pointer; color:var(--g400); font-size:12px; }
+.lc-del:hover { color:var(--danger); }
+/* Lab add form */
+.lab-add { background:#fff; border:1px solid var(--g200); border-radius:6px; padding:11px 12px; }
+.lab-add-title { font-size:11px; font-weight:700; color:#888; margin-bottom:9px; }
+.lab-form-row { display:flex; gap:7px; align-items:center; flex-wrap:wrap; }
+.lab-form-row select,.lab-form-row input { padding:5px 7px; border:1px solid var(--g300); border-radius:4px; font-size:12px; font-family:inherit; background:#fff; }
+.lab-form-row select:focus,.lab-form-row input:focus { outline:none; border-color:var(--primary-l); }
+.unit-hint { font-size:11px; color:var(--g600); }
+/* Lab table */
+.lab-matrix-wrap { overflow-x:auto; }
+.lab-matrix { border-collapse:collapse; width:100%; font-size:12px; white-space:nowrap; }
+.lab-matrix th { background:var(--g50); border:1px solid var(--g200); padding:6px 10px; font-weight:700; font-size:11px; text-align:center; }
+.lab-matrix th.name-th { text-align:left; min-width:120px; }
+.lab-matrix td { border:1px solid var(--g200); padding:5px 9px; text-align:center; }
+.lab-matrix td.name-td { text-align:left; font-weight:600; }
+.lab-matrix td.name-td .lm-unit { font-size:10px; color:var(--g500); font-weight:400; margin-left:3px; }
+.lab-matrix td.name-td .lm-range { font-size:10px; color:var(--g400); display:block; font-weight:400; }
+.lab-matrix td.empty-td { color:var(--g400); }
+.lab-matrix td.cH  { background:#fff5f5; color:var(--danger); font-weight:700; }
+.lab-matrix td.cL  { background:#eff6ff; color:#1d4ed8; font-weight:700; }
+.lab-matrix td.cHH { background:var(--danger); color:#fff; font-weight:700; }
+.lab-matrix td.cLL { background:#1d4ed8; color:#fff; font-weight:700; }
+.flag-sup { font-size:9px; font-weight:800; vertical-align:super; margin-left:1px; }
+/* Chart */
+.chart-panel { display:flex; gap:12px; align-items:flex-start; }
+.chart-items-col { width:130px; flex-shrink:0; background:#fff; border:1px solid var(--g200); border-radius:6px; padding:10px; }
+.chart-items-col h4 { font-size:11px; font-weight:700; color:var(--g600); margin-bottom:8px; }
+.chart-item-label { display:flex; align-items:center; gap:5px; padding:3px 0; cursor:pointer; font-size:12px; }
+.chart-item-label input { cursor:pointer; }
+.chart-main { flex:1; min-width:0; }
+.chart-wrap { background:#fff; border:1px solid var(--g200); border-radius:6px; padding:10px 12px; margin-bottom:10px; }
+.chart-item-title { font-size:12px; font-weight:700; color:var(--g700); margin-bottom:6px; }
+.chart-item-title .ct-unit { font-weight:400; color:var(--g600); }
+.chart-item-title .ct-range { font-size:11px; font-weight:400; color:var(--g500); margin-left:8px; }
+/* Import */
+.import-panel { max-width:680px; }
+.import-mode-toggle { display:flex; gap:0; margin-bottom:14px; border:1px solid var(--g300); border-radius:5px; overflow:hidden; width:fit-content; }
+.imt-btn { padding:5px 16px; border:none; background:var(--g50); cursor:pointer; font-size:12px; font-weight:600; color:var(--g600); font-family:inherit; transition:all .1s; }
+.imt-btn.active { background:var(--primary); color:#fff; }
+.import-prompt-box { background:#f5f3ff; border:1px solid #c4b5fd; border-radius:6px; padding:12px 14px; margin-bottom:14px; }
+.import-prompt-title { font-size:12px; font-weight:700; color:#5b21b6; margin-bottom:6px; }
+.import-prompt-code { font-size:11px; font-family:monospace; color:#4c1d95; line-height:1.7; white-space:pre-wrap; }
+.import-json-area { width:100%; height:160px; border:1px solid var(--g300); border-radius:5px; padding:9px; font-size:12px; font-family:monospace; resize:vertical; }
+.import-json-area:focus { outline:none; border-color:var(--primary-l); }
+.import-preview { background:var(--g50); border:1px solid var(--g200); border-radius:6px; padding:10px 12px; margin-top:10px; font-size:12px; }
+.import-preview-row { display:flex; align-items:center; gap:8px; padding:3px 0; }
+.import-ok { color:var(--success); font-weight:700; }
+.import-warn { color:var(--warning); font-weight:700; }
+.import-err { color:var(--danger); }
+/* Date-based view */
+.date-pills { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:14px; }
+.date-pill { padding:4px 11px; border-radius:14px; border:1px solid var(--g300); background:#fff; cursor:pointer; font-size:12px; font-weight:600; color:var(--g600); transition:all .1s; }
+.date-pill:hover { border-color:var(--primary-l); color:var(--primary); }
+.date-pill.active { background:var(--primary); border-color:var(--primary); color:#fff; }
+/* Memo */
+.memo-area { width:100%; min-height:200px; border:1px solid var(--g300); border-radius:5px; padding:9px; font-size:13px; font-family:inherit; resize:vertical; line-height:1.7; }
+.memo-area:focus { outline:none; border-color:var(--primary-l); box-shadow:0 0 0 3px rgba(41,128,185,.1); }
+/* AI */
+.ai-settings-card { background:#fff; border:1px solid var(--g200); border-radius:8px; padding:12px 14px; margin-bottom:12px; }
+.ai-s-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.ai-s-title { font-size:12px; font-weight:700; color:var(--g600); }
+.ai-key-row { display:flex; gap:7px; }
+.ai-key-row input { flex:1; padding:6px 9px; border:1px solid var(--g300); border-radius:4px; font-size:12px; font-family:monospace; }
+.ai-key-row input:focus { outline:none; border-color:var(--primary-l); }
+.ai-ctx { background:var(--g50); border:1px solid var(--g200); border-radius:6px; padding:10px 12px; margin-bottom:12px; font-size:11px; line-height:1.6; white-space:pre-wrap; max-height:180px; overflow-y:auto; color:var(--g700); font-family:monospace; }
+.ai-run-btn { background:#7c3aed; color:#fff; border:none; border-radius:6px; padding:9px 20px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; width:100%; margin-bottom:12px; transition:background .15s; }
+.ai-run-btn:hover { background:#6d28d9; }
+.ai-run-btn:disabled { background:var(--g400); cursor:not-allowed; }
+.ai-loading { text-align:center; padding:20px; color:var(--g600); font-size:13px; }
+.ai-result { background:#fff; border:1px solid #c4b5fd; border-radius:8px; padding:14px 16px; line-height:1.8; font-size:13px; }
+.ai-sec { margin-bottom:12px; }
+.ai-sec-title { font-weight:700; color:#5b21b6; font-size:13px; margin-bottom:4px; border-left:3px solid #7c3aed; padding-left:8px; }
+.ai-sec-body { font-size:12px; line-height:1.7; color:var(--g700); padding-left:11px; }
+.ai-note { font-size:11px; color:#aaa; margin-top:8px; border-top:1px solid var(--g200); padding-top:6px; }
+/* Modal */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; z-index:200; }
+.modal { background:#fff; border-radius:10px; padding:0; width:540px; max-width:96vw; box-shadow:0 20px 60px rgba(0,0,0,.3); display:flex; flex-direction:column; max-height:90vh; }
+.modal-head { display:flex; align-items:center; justify-content:space-between; padding:16px 20px 12px; border-bottom:1px solid var(--g200); flex-shrink:0; }
+.modal-title { font-size:14px; font-weight:700; }
+.modal-close { background:none; border:none; font-size:20px; cursor:pointer; color:var(--g600); }
+.modal-body { overflow-y:auto; padding:14px 20px; flex:1; }
+.modal-foot { display:flex; gap:7px; justify-content:flex-end; padding:12px 20px; border-top:1px solid var(--g200); flex-shrink:0; }
+.form-group { margin-bottom:10px; }
+.form-group label { display:block; font-size:11px; font-weight:700; color:var(--g600); margin-bottom:3px; }
+.form-group input,.form-group select,.form-group textarea { width:100%; padding:7px 9px; border:1px solid var(--g300); border-radius:4px; font-size:13px; font-family:inherit; background:#fff; }
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus { outline:none; border-color:var(--primary-l); }
+.form-group textarea { resize:vertical; min-height:56px; line-height:1.6; }
+.form-group .calc-hint { font-size:12px; color:var(--primary); font-weight:700; margin-left:6px; }
+.form-row { display:flex; gap:8px; }
+.form-row .form-group { flex:1; }
+.modal-section-divider { height:1px; background:var(--g200); margin:12px 0 14px; }
+.modal-section-label { font-size:10px; font-weight:700; color:var(--g500); letter-spacing:.08em; margin-bottom:10px; text-transform:uppercase; }
+/* Summary tab */
+.summary-copy-bar { display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-bottom:10px; }
+.summary-box { background:#fff; border:1px solid var(--g200); border-radius:8px; padding:16px 18px; font-size:12px; line-height:1.9; white-space:pre-wrap; font-family:monospace; color:var(--g800); }
+.summary-section { margin-bottom:14px; }
+.summary-section-title { font-size:11px; font-weight:700; color:var(--primary); border-bottom:1px solid var(--g200); padding-bottom:4px; margin-bottom:6px; letter-spacing:.05em; }
+.summary-row { display:flex; gap:8px; }
+.summary-key { color:var(--g500); font-size:11px; min-width:80px; flex-shrink:0; }
+.summary-val { font-size:12px; color:var(--g800); }
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--g300); border-radius:3px; }
+/* IV Lines */
+.iv-section { margin:8px 0 4px; border-top:1px dashed var(--g300); padding-top:10px; }
+.iv-section-title { font-size:10px; font-weight:700; color:#8e44ad; letter-spacing:.06em; text-transform:uppercase; margin-bottom:7px; }
+.iv-table { width:100%; border-collapse:collapse; font-size:11px; margin-bottom:8px; }
+.iv-table th { background:var(--g50); border:1px solid var(--g200); padding:4px 7px; font-size:10px; font-weight:700; color:var(--g600); text-align:left; white-space:nowrap; }
+.iv-table td { border:1px solid var(--g200); padding:4px 7px; }
+.iv-form-row { display:flex; gap:5px; align-items:center; flex-wrap:wrap; margin-top:6px; }
+.iv-form-row input { padding:4px 7px; border:1px solid var(--g300); border-radius:4px; font-size:11px; font-family:inherit; }
+.iv-form-row input:focus { outline:none; border-color:var(--primary-l); }
+/* Sidebar hospital filter */
+.sb-filter { padding:4px 6px 3px; }
+.sbf-pills { display:flex; flex-wrap:wrap; gap:3px; padding-bottom:4px; }
+.sbf-pill { font-size:10px; padding:2px 8px; border:1px solid rgba(255,255,255,.22); background:rgba(255,255,255,.1); color:rgba(255,255,255,.72); border-radius:10px; cursor:pointer; font-family:inherit; white-space:nowrap; max-width:150px; overflow:hidden; text-overflow:ellipsis; transition:background .1s; }
+.sbf-pill:hover { background:rgba(255,255,255,.2); color:#fff; }
+.sbf-pill.active { background:rgba(255,255,255,.28); color:#fff; font-weight:700; border-color:rgba(255,255,255,.5); }
+.sbf-pill.arch { border-color:rgba(255,200,80,.35); color:rgba(255,210,100,.8); }
+.sbf-pill.arch.active { background:rgba(255,200,80,.18); color:rgb(255,220,100); }
+/* CQ */
+.cq-card { background:#fff; border:1px solid var(--g200); border-radius:8px; padding:12px 14px; margin-bottom:9px; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+.cq-q { font-size:13px; font-weight:700; color:var(--g800); margin-bottom:8px; line-height:1.5; }
+.cq-section { margin-bottom:6px; }
+.cq-label { font-size:10px; font-weight:700; color:var(--g500); text-transform:uppercase; letter-spacing:.05em; display:block; margin-bottom:2px; }
+.cq-body { font-size:12px; color:var(--g700); line-height:1.6; padding-left:8px; }
+.cq-ref { color:var(--primary); font-style:italic; }
+.cq-sv { background:#f0fdf4; border-left:3px solid #86efac; padding:4px 8px; border-radius:0 4px 4px 0; color:#15803d; }
+.cq-tag { font-size:10px; background:#e6f2fb; border:1px solid #b5d4ec; color:var(--primary); padding:1px 6px; border-radius:10px; font-weight:600; }
+/* Reports */
+.report-card { background:#fff; border:1px solid var(--g200); border-radius:8px; padding:12px 14px; margin-bottom:9px; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+.report-img { max-width:100%; max-height:200px; border-radius:4px; cursor:pointer; border:1px solid var(--g200); display:block; margin:6px 0; transition:max-height .2s; }
+.report-cat { font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; }
+.rcat-CT,.rcat-ct { background:#e6f2fb; color:var(--primary); }
+.rcat-MRI,.rcat-mri { background:#fff7ed; color:#ea580c; }
+.rcat-X線,.rcat-xray { background:#f0fdf4; color:#16a34a; }
+.rcat-心エコー,.rcat-超音波,.rcat-echo { background:#f5f3ff; color:#7c3aed; }
+.rcat-other { background:var(--g100); color:var(--g600); }
+/* Echo */
+.echo-card { background:#fff; border:1px solid var(--g200); border-radius:8px; padding:12px 14px; margin-bottom:9px; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+.echo-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:6px; margin-bottom:8px; }
+.echo-val { background:var(--g50); border:1px solid var(--g200); border-radius:5px; padding:5px 8px; }
+.echo-val-name { font-size:10px; color:var(--g500); font-weight:700; }
+.echo-val-num { font-size:15px; font-weight:700; color:var(--g800); }
+.interp-row { display:flex; align-items:flex-start; gap:8px; padding:5px 8px; border-radius:5px; margin-bottom:3px; font-size:12px; }
+.interp-ok { background:#f0fdf4; border:1px solid #bbf7d0; }
+.interp-warn { background:#fffbeb; border:1px solid #fde68a; }
+.interp-crit { background:#fef2f2; border:1px solid #fecaca; }
+.interp-neutral { background:var(--g50); border:1px solid var(--g200); }
+.interp-lbl { font-weight:700; min-width:90px; flex-shrink:0; }
+.interp-ok .interp-lbl { color:#15803d; }
+.interp-warn .interp-lbl { color:#b45309; }
+.interp-crit .interp-lbl { color:var(--danger); }
+.interp-neutral .interp-lbl { color:var(--g600); }
+</style>
+</head>
+<body>
+<header class="app-header">
+  <h1>臨床タスク管理</h1>
+  <button class="hdr-reset" onclick="resetDay()">本日リセット</button>
+  <div class="hdr-clock" id="clock"></div>
+</header>
+<div class="app-body">
+  <div class="sidebar">
+    <div class="sb-head"><span>担当患者</span><button class="btn-add-pt" onclick="openAddModal()">+ 追加</button></div>
+    <div id="sidebarFilter"></div>
+    <div class="pt-list" id="patientList"></div>
+  </div>
+  <div class="main" id="mainArea">
+    <div class="empty-state"><div style="font-size:44px;opacity:.15">+</div><div>患者を選択または追加してください</div></div>
+  </div>
+</div>
+<div id="patientModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-head"><div class="modal-title" id="modalTitle">患者登録</div><button class="modal-close" onclick="closeModal()">&#215;</button></div>
+    <div class="modal-body">
+      <div class="modal-section-label">基本情報</div>
+      <div class="form-group"><label>実習先・病院名</label><input type="text" id="f-hospital" placeholder="例: ○○病院 内科病棟"></div>
+      <div class="form-group"><label>患者名 <span style="color:var(--danger)">*</span></label><input type="text" id="f-name" placeholder="例: 山田 太郎"></div>
+      <div class="form-row">
+        <div class="form-group"><label>病室</label><input type="text" id="f-room" placeholder="例: 301号室"></div>
+        <div class="form-group"><label>入院日</label><input type="date" id="f-date"></div>
+      </div>
+      <div class="form-group"><label>診断名</label><input type="text" id="f-diag" placeholder="例: 2型糖尿病、急性心不全"></div>
+      <div class="modal-section-divider"></div>
+      <div class="modal-section-label">患者属性</div>
+      <div class="form-row">
+        <div class="form-group"><label>生年月日</label><input type="date" id="f-birth" oninput="updateModalCalc()"></div>
+        <div class="form-group"><label>年齢</label><input type="text" id="f-age" placeholder="自動計算" readonly style="background:var(--g50);color:var(--primary);font-weight:700"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>身長 (cm)</label><input type="number" id="f-height" placeholder="例: 165" step="0.1" oninput="updateModalCalc()"></div>
+        <div class="form-group"><label>体重 (kg)</label><input type="number" id="f-weight" placeholder="例: 60" step="0.1" oninput="updateModalCalc()"></div>
+        <div class="form-group"><label>BMI</label><input type="text" id="f-bmi" placeholder="自動計算" readonly style="background:var(--g50);color:var(--primary);font-weight:700"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="flex:0 0 160px"><label>ADL</label>
+          <select id="f-adl">
+            <option value="">未選択</option>
+            <option value="自立">自立</option>
+            <option value="一部介助">一部介助</option>
+            <option value="全介助">全介助</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-section-divider"></div>
+      <div class="modal-section-label">キーパーソン・背景</div>
+      <div class="form-row">
+        <div class="form-group"><label>キーパーソン氏名</label><input type="text" id="f-kp-name" placeholder="例: 山田 花子"></div>
+        <div class="form-group" style="flex:0 0 120px"><label>続柄</label><input type="text" id="f-kp-rel" placeholder="例: 妻"></div>
+      </div>
+      <div class="form-group"><label>既往歴</label><textarea id="f-past" placeholder="例: 高血圧（2010年〜）&#10;2型糖尿病（2015年〜）&#10;狭心症（2018年手術）"></textarea></div>
+      <div class="form-group"><label>アレルギー</label><textarea id="f-allergy" placeholder="例: ペニシリン系（発疹）、造影剤、卵" style="min-height:44px"></textarea></div>
+      <div class="form-group"><label>家族歴</label><textarea id="f-family" placeholder="例: 父：高血圧、母：2型糖尿病" style="min-height:44px"></textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" id="modalSaveBtn" onclick="savePatient()">登録</button>
+    </div>
+  </div>
+</div>
+<script>
+// ================================================================
+// 定数
+// ================================================================
+const CATEGORIES = [
+  {name:'バイタル確認', abbr:'V', color:'#2980b9', defaults:['体温測定','血圧測定（収縮期/拡張期）','脈拍確認','SpO₂測定','呼吸数確認']},
+  {name:'点滴・輸液',  abbr:'I', color:'#8e44ad', defaults:['点滴内容・薬剤確認','滴下速度確認','残量確認','ルート・固定確認']},
+  {name:'内服薬',      abbr:'M', color:'#e67e22', defaults:['朝薬投与確認','昼薬投与確認','夕薬投与確認','眠前薬投与確認']},
+  {name:'処置',        abbr:'P', color:'#c0392b', defaults:['創傷処置','カテーテル管理（交換日確認含む）','ドレーン確認']},
+  {name:'観察項目',    abbr:'O', color:'#27ae60', defaults:['意識レベル確認（JCS/GCS）','疼痛評価（NRS/VAS）','浮腫・皮膚状態確認','排泄確認（尿量・排便）']},
+  {name:'検査',        abbr:'L', color:'#16a085', defaults:['採血結果確認','画像検査確認','培養結果確認']},
+  {name:'記録・報告',  abbr:'R', color:'#7f8c8d', defaults:['看護記録記載','申し送り準備','医師への報告事項確認']},
+  {name:'その他',      abbr:'他', color:'#95a5a6', defaults:[]},
+];
+const CAT_NAMES = CATEGORIES.map(c=>c.name);
+const CAT_MIGRATE = {'点滴':'点滴・輸液','投薬':'内服薬','観察':'観察項目'};
+
+const LAB_REF = {
+  'WBC':    {unit:'×10³/μL',lo:3.5, hi:9.0, cLo:2.0, cHi:30.0},
+  'RBC':    {unit:'×10⁶/μL',lo:3.86,hi:5.55},
+  'Hb':     {unit:'g/dL',   lo:11.5,hi:17.5,cLo:7.0},
+  'Hct':    {unit:'%',      lo:35,  hi:52},
+  'Plt':    {unit:'×10³/μL',lo:150, hi:400, cLo:50,  cHi:1000},
+  'Na':     {unit:'mEq/L',  lo:136, hi:145, cLo:125, cHi:155},
+  'K':      {unit:'mEq/L',  lo:3.5, hi:5.0, cLo:2.5, cHi:6.5},
+  'Cl':     {unit:'mEq/L',  lo:98,  hi:108},
+  'BUN':    {unit:'mg/dL',  lo:8,   hi:20},
+  'Cr':     {unit:'mg/dL',  lo:0.46,hi:1.09},
+  'eGFR':   {unit:'mL/min', lo:60,  hi:null},
+  'BS':     {unit:'mg/dL',  lo:70,  hi:110, cLo:50,  cHi:450},
+  'HbA1c':  {unit:'%',      lo:4.6, hi:6.2},
+  'AST':    {unit:'U/L',    lo:13,  hi:33},
+  'ALT':    {unit:'U/L',    lo:7,   hi:40},
+  'γ-GTP':  {unit:'U/L',    lo:0,   hi:70},
+  'T-Bil':  {unit:'mg/dL',  lo:0.3, hi:1.2},
+  'TP':     {unit:'g/dL',   lo:6.5, hi:8.0},
+  'Alb':    {unit:'g/dL',   lo:4.0, hi:5.0, cLo:2.5},
+  'CRP':    {unit:'mg/dL',  lo:0,   hi:0.3, cHi:10.0},
+  'SpO2':   {unit:'%',      lo:95,  hi:100, cLo:88},
+  'HR':     {unit:'bpm',    lo:60,  hi:100, cLo:40,  cHi:150},
+  'SBP':    {unit:'mmHg',   lo:90,  hi:140, cLo:70,  cHi:190},
+  'DBP':    {unit:'mmHg',   lo:60,  hi:90},
+  'BT':     {unit:'°C',     lo:36.0,hi:37.5,cHi:39.0},
+  'PT-INR': {unit:'',       lo:0.85,hi:1.15,cHi:3.0},
+  'D-Dimer':{unit:'μg/mL', lo:0,   hi:1.0},
+};
+const LAB_NAMES = Object.keys(LAB_REF);
+
+// ================================================================
+// STATE
+// ================================================================
+let S = {
+  patients:[], sel:null, tab:'tasks',
+  collapsed:{}, editId:null,
+  aiResult:'', aiLoading:false,
+  labView:'cards',
+  chartItems:[],
+  importPreview:null,
+  importMode:'json',
+  labSelDate:null,
+  hospitalFilter:'all',
+  cqTagFilter:'',
+};
+
+function uid()  { return Date.now().toString(36)+Math.random().toString(36).substr(2,5); }
+function nowHM(){ const d=new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function pad(n) { return String(n).padStart(2,'0'); }
+function todayStr(){ const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function esc(s) { return (s==null)?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function selP() { return S.patients.find(p=>p.id===S.sel); }
+function calcAge(bd){ if(!bd) return ''; const b=new Date(bd),n=new Date(); let a=n.getFullYear()-b.getFullYear(); const m=n.getMonth()-b.getMonth(); if(m<0||(m===0&&n.getDate()<b.getDate())) a--; return a>=0?`${a}歳`:''; }
+function calcBMI(h,w){ const hm=parseFloat(h)/100,wk=parseFloat(w); if(!hm||!wk||isNaN(hm)||isNaN(wk)) return ''; return (wk/(hm*hm)).toFixed(1); }
+function updateModalCalc(){
+  const bd=document.getElementById('f-birth'); const h=document.getElementById('f-height'); const w=document.getElementById('f-weight');
+  const age=document.getElementById('f-age'); const bmi=document.getElementById('f-bmi');
+  if(age&&bd) age.value=calcAge(bd.value);
+  if(bmi&&h&&w) bmi.value=calcBMI(h.value,w.value);
+}
+
+// ================================================================
+// PERSISTENCE
+// ================================================================
+function load() {
+  try {
+    const d=JSON.parse(localStorage.getItem('clinical_v2')||'{}');
+    S.patients=(d.patients||[]).map(migrate);
+    S.sel=d.sel||null;
+  } catch(e){ console.error(e); }
+}
+
+function migrate(p) {
+  if(!p.tasks) p.tasks=[];
+  if(!p.labs)  p.labs=[];
+  if(!p.memo)  p.memo='';
+  p.tasks=p.tasks.map(t=>{
+    if(t.status===undefined){ t.status=t.done?'done':'pending'; t.doneAt=t.done?(t.doneAt||''):null; delete t.done; }
+    if(!t.cat&&t.category){ t.cat=t.category; delete t.category; }
+    if(!t.cat) t.cat='その他';
+    if(!CAT_NAMES.includes(t.cat)) t.cat=CAT_MIGRATE[t.cat]||'その他';
+    return t;
+  });
+  // Migrate: new patient fields defaults
+  if(!p.birthdate) p.birthdate='';
+  if(!p.height)    p.height='';
+  if(!p.weight)    p.weight='';
+  if(!p.adl)       p.adl='';
+  if(!p.kpName)    p.kpName='';
+  if(!p.kpRel)     p.kpRel='';
+  if(!p.pastHistory) p.pastHistory='';
+  if(!p.allergies)   p.allergies='';
+  if(!p.familyHistory) p.familyHistory='';
+  if(!p.ivLines) p.ivLines=[];
+  if(!p.medications) p.medications=[];
+  if(!p.physicalFindings) p.physicalFindings='';
+  if(!p.subjective) p.subjective='';
+  if(!p.hospital) p.hospital='';
+  if(p.archived===undefined) p.archived=false;
+  if(!p.cqs) p.cqs=[];
+  if(!p.reports) p.reports=[];
+  if(!p.echos) p.echos=[];
+  // Migrate lab entries: add date field from ts if missing
+  p.labs=p.labs.map(lv=>{
+    if(!lv.date){
+      const m=lv.ts&&lv.ts.match(/^(\d{1,2})\/(\d{1,2})/);
+      if(m){
+        const yr=new Date().getFullYear();
+        lv.date=`${yr}-${pad(parseInt(m[1]))}-${pad(parseInt(m[2]))}`;
+      } else {
+        lv.date=todayStr();
+      }
+    }
+    return lv;
+  });
+  return p;
+}
+
+function save() {
+  try { localStorage.setItem('clinical_v2',JSON.stringify({patients:S.patients,sel:S.sel})); }
+  catch(e){ console.error(e); }
+}
+
+// ================================================================
+// CLOCK
+// ================================================================
+function updateClock(){
+  const n=new Date(),days=['日','月','火','水','木','金','土'];
+  const el=document.getElementById('clock');
+  if(el) el.textContent=`${n.getFullYear()}/${n.getMonth()+1}/${n.getDate()}（${days[n.getDay()]}）${nowHM()}`;
+}
+setInterval(updateClock,1000); updateClock();
+
+// ================================================================
+// DAILY RESET
+// ================================================================
+function resetDay(){
+  if(!confirm('全患者のタスクを「未実施」にリセットしますか？\n（実施時刻もクリアされます）')) return;
+  S.patients.forEach(p=>p.tasks.forEach(t=>{t.status='pending';t.doneAt=null;}));
+  S.aiResult=''; save(); render();
+}
+
+// ================================================================
+// PATIENT CRUD
+// ================================================================
+function openAddModal(){
+  S.editId=null;
+  document.getElementById('modalTitle').textContent='患者登録';
+  document.getElementById('modalSaveBtn').textContent='登録';
+  ['f-name','f-room','f-diag','f-date','f-hospital'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('patientModal').style.display='flex';
+  setTimeout(()=>document.getElementById('f-name').focus(),60);
+}
+function openEditModal(){
+  const p=selP(); if(!p) return;
+  S.editId=p.id;
+  document.getElementById('modalTitle').textContent='患者情報編集';
+  document.getElementById('modalSaveBtn').textContent='更新';
+  document.getElementById('f-hospital').value=p.hospital||'';
+  document.getElementById('f-name').value=p.name;
+  document.getElementById('f-room').value=p.room||'';
+  document.getElementById('f-diag').value=p.diag||'';
+  document.getElementById('f-date').value=p.date||'';
+  document.getElementById('f-birth').value=p.birthdate||'';
+  document.getElementById('f-height').value=p.height||'';
+  document.getElementById('f-weight').value=p.weight||'';
+  document.getElementById('f-adl').value=p.adl||'';
+  document.getElementById('f-kp-name').value=p.kpName||'';
+  document.getElementById('f-kp-rel').value=p.kpRel||'';
+  document.getElementById('f-past').value=p.pastHistory||'';
+  document.getElementById('f-allergy').value=p.allergies||'';
+  document.getElementById('f-family').value=p.familyHistory||'';
+  updateModalCalc();
+  document.getElementById('patientModal').style.display='flex';
+}
+function closeModal(){ document.getElementById('patientModal').style.display='none'; }
+function savePatient(){
+  const name=document.getElementById('f-name').value.trim();
+  if(!name){ document.getElementById('f-name').focus(); return; }
+  const room=document.getElementById('f-room').value.trim();
+  const diag=document.getElementById('f-diag').value.trim();
+  const date=document.getElementById('f-date').value;
+  const birthdate=document.getElementById('f-birth').value;
+  const height=document.getElementById('f-height').value;
+  const weight=document.getElementById('f-weight').value;
+  const adl=document.getElementById('f-adl').value;
+  const kpName=document.getElementById('f-kp-name').value.trim();
+  const kpRel=document.getElementById('f-kp-rel').value.trim();
+  const pastHistory=document.getElementById('f-past').value.trim();
+  const allergies=document.getElementById('f-allergy').value.trim();
+  const familyHistory=document.getElementById('f-family').value.trim();
+  const hospital=document.getElementById('f-hospital').value.trim();
+  const extra={birthdate,height,weight,adl,kpName,kpRel,pastHistory,allergies,familyHistory,hospital};
+  if(!S.editId){
+    const p={id:uid(),name,room,diag,date,...extra,tasks:[],labs:[],memo:'',ivLines:[],medications:[],physicalFindings:'',subjective:'',cqs:[],archived:false};
+    S.patients.push(p); S.sel=p.id; S.tab='tasks';
+  } else {
+    const p=S.patients.find(x=>x.id===S.editId);
+    if(p) Object.assign(p,{name,room,diag,date,...extra});
+  }
+  save(); closeModal(); render();
+}
+function deletePatient(){
+  const p=selP(); if(!p) return;
+  if(!confirm(`「${p.name}」を削除しますか？元に戻せません。`)) return;
+  S.patients=S.patients.filter(x=>x.id!==p.id);
+  S.sel=S.patients.length?S.patients[0].id:null;
+  save(); render();
+}
+function archivePatient(){
+  const p=selP(); if(!p) return;
+  if(!confirm(`「${p.name}」を退院としてアーカイブしますか？`)) return;
+  p.archived=true; S.hospitalFilter='__archived__';
+  save(); render();
+}
+function unarchivePatient(){
+  const p=selP(); if(!p) return;
+  p.archived=false; S.hospitalFilter='all';
+  save(); render();
+}
+function selectPatient(id){ S.sel=id; S.tab='tasks'; S.aiResult=''; save(); render(); }
+
+// ================================================================
+// TASKS
+// ================================================================
+function cycleStatus(id){
+  const p=selP(); if(!p) return;
+  const t=p.tasks.find(x=>x.id===id); if(!t) return;
+  if(t.status==='pending'){ t.status='done'; t.doneAt=nowHM(); }
+  else if(t.status==='done'){ t.status='check'; }
+  else { t.status='pending'; t.doneAt=null; }
+  save(); renderTasks(); renderSidebar();
+}
+function deleteTask(id){
+  const p=selP(); if(!p) return;
+  p.tasks=p.tasks.filter(x=>x.id!==id);
+  save(); renderTasks(); renderSidebar();
+}
+function addCustomTask_byId(inputId,catName){
+  const p=selP(); if(!p) return;
+  const el=document.getElementById(inputId); if(!el) return;
+  const text=el.value.trim(); if(!text){ el.focus(); return; }
+  p.tasks.push({id:uid(),text,cat:catName,status:'pending',doneAt:null});
+  el.value=''; save(); renderTasks(); renderSidebar();
+}
+function addTemplates(catName){
+  const p=selP(); if(!p) return;
+  const def=CATEGORIES.find(c=>c.name===catName);
+  if(!def||!def.defaults.length) return;
+  const existing=p.tasks.filter(t=>t.cat===catName).map(t=>t.text);
+  def.defaults.forEach(text=>{ if(!existing.includes(text)) p.tasks.push({id:uid(),text,cat:catName,status:'pending',doneAt:null}); });
+  save(); renderTasks(); renderSidebar();
+}
+function toggleCollapse(name){ S.collapsed[name]=!S.collapsed[name]; renderTasks(); }
+function renderIVSection(p){
+  const rows=(p.ivLines||[]).map(iv=>`
+    <tr>
+      <td>${esc(iv.drug)}</td>
+      <td>${esc(iv.dose)}</td>
+      <td>${esc(iv.rate)}</td>
+      <td>${esc(iv.start)}</td>
+      <td>${esc(iv.end)}</td>
+      <td><button class="task-del" onclick="deleteIVLine('${iv.id}')" title="削除">&#215;</button></td>
+    </tr>`).join('');
+  return `<div class="iv-section">
+    <div class="iv-section-title">点滴詳細</div>
+    ${rows?`<table class="iv-table">
+      <thead><tr><th>薬剤名</th><th>投与量</th><th>速度(mL/h)</th><th>開始</th><th>終了予定</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`:'<div class="cat-empty" style="margin-bottom:6px">点滴登録なし</div>'}
+    <div class="iv-form-row">
+      <input type="text" id="iv-drug" placeholder="薬剤名（必須）" style="flex:2;min-width:90px">
+      <input type="text" id="iv-dose" placeholder="投与量(例:500mL)" style="flex:1.5;min-width:85px">
+      <input type="text" id="iv-rate" placeholder="速度(mL/h)" style="flex:1;min-width:75px">
+      <input type="time" id="iv-start" title="開始時刻" style="width:90px">
+      <input type="time" id="iv-end" title="終了予定時刻" style="width:90px">
+      <button class="btn btn-primary btn-sm" onclick="addIVLine()">追加</button>
+    </div>
+  </div>`;
+}
+function addIVLine(){
+  const p=selP(); if(!p) return;
+  const drug=(document.getElementById('iv-drug')||{}).value.trim();
+  if(!drug){ document.getElementById('iv-drug').focus(); return; }
+  const dose=(document.getElementById('iv-dose')||{}).value.trim();
+  const rate=(document.getElementById('iv-rate')||{}).value.trim();
+  const start=(document.getElementById('iv-start')||{}).value;
+  const end=(document.getElementById('iv-end')||{}).value;
+  if(!p.ivLines) p.ivLines=[];
+  p.ivLines.push({id:uid(),drug,dose,rate,start,end});
+  save(); renderTasks();
+}
+function deleteIVLine(id){
+  const p=selP(); if(!p) return;
+  p.ivLines=(p.ivLines||[]).filter(x=>x.id!==id);
+  save(); renderTasks();
+}
+function renderMedSection(p){
+  const rows=(p.medications||[]).map(med=>{
+    const t=[med.am&&'朝',med.noon&&'昼',med.pm&&'夕',med.bed&&'眠前'].filter(Boolean).join('・')||'—';
+    return `<tr>
+      <td>${esc(med.drug)}</td>
+      <td>${esc(med.dose)}</td>
+      <td>${t}</td>
+      <td><button class="task-del" onclick="deleteMedication('${med.id}')" title="削除">&#215;</button></td>
+    </tr>`;
+  }).join('');
+  return `<div class="iv-section">
+    <div class="iv-section-title">内服薬詳細</div>
+    ${rows?`<table class="iv-table">
+      <thead><tr><th>薬剤名</th><th>用量</th><th>タイミング</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`:'<div class="cat-empty" style="margin-bottom:6px">内服薬登録なし</div>'}
+    <div class="iv-form-row">
+      <input type="text" id="med-drug" placeholder="薬剤名（必須）" style="flex:2;min-width:90px">
+      <input type="text" id="med-dose" placeholder="用量(例:5mg)" style="flex:1;min-width:75px">
+      <label style="display:flex;align-items:center;gap:3px;font-size:11px;white-space:nowrap"><input type="checkbox" id="med-am">朝</label>
+      <label style="display:flex;align-items:center;gap:3px;font-size:11px;white-space:nowrap"><input type="checkbox" id="med-noon">昼</label>
+      <label style="display:flex;align-items:center;gap:3px;font-size:11px;white-space:nowrap"><input type="checkbox" id="med-pm">夕</label>
+      <label style="display:flex;align-items:center;gap:3px;font-size:11px;white-space:nowrap"><input type="checkbox" id="med-bed">眠前</label>
+      <button class="btn btn-primary btn-sm" onclick="addMedication()">追加</button>
+    </div>
+  </div>`;
+}
+function addMedication(){
+  const p=selP(); if(!p) return;
+  const drug=(document.getElementById('med-drug')||{}).value.trim();
+  if(!drug){ document.getElementById('med-drug').focus(); return; }
+  const dose=(document.getElementById('med-dose')||{}).value.trim();
+  const am=!!(document.getElementById('med-am')||{}).checked;
+  const noon=!!(document.getElementById('med-noon')||{}).checked;
+  const pm=!!(document.getElementById('med-pm')||{}).checked;
+  const bed=!!(document.getElementById('med-bed')||{}).checked;
+  if(!p.medications) p.medications=[];
+  p.medications.push({id:uid(),drug,dose,am,noon,pm,bed});
+  save(); renderTasks();
+}
+function deleteMedication(id){
+  const p=selP(); if(!p) return;
+  p.medications=(p.medications||[]).filter(x=>x.id!==id);
+  save(); renderTasks();
+}
+function renderNutrition(){
+  const p=selP(); const c=document.getElementById('tabContent'); if(!p||!c) return;
+  const h=parseFloat(p.height), w=parseFloat(p.weight);
+  if(!w||isNaN(w)||!h||isNaN(h)){
+    c.innerHTML='<div style="text-align:center;padding:40px;color:#bbb;font-size:13px">患者情報に身長・体重を登録してください</div>';
+    return;
+  }
+  const latestLab=name=>{ const m={}; (p.labs||[]).forEach(lv=>{if(!m[lv.name]||lv.date>=m[lv.name].date) m[lv.name]=lv;}); return m[name]!=null?m[name].val:null; };
+  const alb=latestLab('Alb'); const egfr=latestLab('eGFR'); const hba1c=latestLab('HbA1c');
+  const age=p.birthdate?calcAgeNum(p.birthdate):null;
+  const tx=`${p.diag||''}|${p.pastHistory||''}`.toLowerCase();
+  const hasCKD=/ckd|慢性腎臓病|腎臓病|腎不全/.test(tx)||(egfr!=null&&egfr<60);
+  const hasDM=/糖尿病|dm\b/.test(tx)||(hba1c!=null&&hba1c>=6.5);
+  const hasHT=/高血圧|hypertension/.test(tx);
+  const hasHF=/心不全|heart failure/.test(tx);
+  const bmi=w/(h/100)**2;
+  const calLo=Math.round(w*25);
+  const calHi=hasHF?Math.round(w*28):Math.round(w*35);
+  const calNote=hasHF?'心不全は過負荷を避け25〜28kcal/kg。':hasDM?`HbA1c ${hba1c!=null?hba1c+'%':'—'}。BMI${bmi.toFixed(1)}参考に。`:'体重×25〜35kcal/kg。';
+  let proLo,proHi,proNote;
+  if(hasCKD&&egfr!=null&&egfr<30){proLo=(w*0.6).toFixed(1);proHi=(w*0.8).toFixed(1);proNote=`eGFR${egfr} — 高度制限。透析後は1.0〜1.2g/kgへ。`;}
+  else if(hasCKD&&egfr!=null&&egfr<60){proLo=(w*0.6).toFixed(1);proHi=(w*0.8).toFixed(1);proNote=`eGFR${egfr} — 蛋白制限推奨。`;}
+  else if(hasCKD){proLo=(w*0.8).toFixed(1);proHi=(w*1.0).toFixed(1);proNote='CKD疑い。腎機能確認を。';}
+  else{proLo=(w*1.0).toFixed(1);proHi=(w*1.2).toFixed(1);proNote=alb!=null&&alb<3.5?`Alb${alb} — 低栄養。積極補充を。`:'標準。低栄養時は増量。';}
+  let saltTarget='< 7.5 g/日',saltNote='一般目標値。';
+  if(hasCKD||hasHT||hasHF){saltTarget='< 6.0 g/日';saltNote=[hasCKD&&'CKD',hasHT&&'高血圧',hasHF&&'心不全'].filter(Boolean).join('・')+'のため制限。';}
+  let kTarget,kNote;
+  if(hasCKD&&egfr!=null&&egfr<30){kTarget='< 1,500 mg/日';kNote='高K血症リスク大。野菜・果物・芋類に注意。';}
+  else if(hasCKD&&egfr!=null&&egfr<60){kTarget='< 2,000 mg/日';kNote='適度な制限を。';}
+  else{kTarget='制限なし（2,000〜3,500 mg/日）';kNote='高K血症なければ制限不要。';}
+  let fluidTarget,fluidNote;
+  if(hasHF){fluidTarget='< 1,500 mL/日';fluidNote='前日尿量+500mLを目安とする場合も。';}
+  else if(hasCKD&&egfr!=null&&egfr<30){fluidTarget='前日尿量 + 500 mL/日';fluidNote='無尿・乏尿時は厳重管理。';}
+  else{const fl=Math.round(w*32);fluidTarget=`約 ${fl} mL/日`;fluidNote=`体重×30〜35mL = ${Math.round(w*30)}〜${Math.round(w*35)}mL。`;}
+  const flags=[hasCKD&&'CKD',hasDM&&'糖尿病',hasHT&&'高血圧',hasHF&&'心不全'].filter(Boolean);
+  const card=(title,val,note,color)=>`<div style="background:#fff;border:1px solid var(--g200);border-radius:8px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.05)"><div style="font-size:10px;font-weight:700;color:${color};letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">${title}</div><div style="font-size:18px;font-weight:700;color:var(--g800);line-height:1.3;margin-bottom:4px">${val}</div>${note?`<div style="font-size:11px;color:var(--g600);line-height:1.5">${note}</div>`:''}</div>`;
+  c.innerHTML=`
+    <div style="margin-bottom:12px;padding:10px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;font-size:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+      <span style="font-weight:700;color:#0369a1">計算条件</span>
+      <span>体重 ${w}kg / 身長 ${h}cm / BMI ${bmi.toFixed(1)}</span>
+      ${age!=null?`<span>/ ${age}歳</span>`:''}
+      ${alb!=null?`<span>/ Alb ${alb}g/dL</span>`:''}
+      ${egfr!=null?`<span>/ eGFR ${egfr}mL/min</span>`:''}
+      ${hba1c!=null?`<span>/ HbA1c ${hba1c}%</span>`:''}
+      ${flags.map(f=>`<span style="background:#fef9c3;border:1px solid #fde047;color:#713f12;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:700">${f}</span>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:10px;margin-bottom:12px">
+      ${card('必要カロリー',`${calLo}〜${calHi} kcal/日`,calNote,'var(--primary)')}
+      ${card('タンパク質',`${proLo}〜${proHi} g/日`,proNote,'#8e44ad')}
+      ${card('塩分制限',saltTarget,saltNote,'#c0392b')}
+      ${card('カリウム',kTarget,kNote,'#d97706')}
+      ${card('水分',fluidTarget,fluidNote,'#2980b9')}
+    </div>
+    <div style="padding:10px 14px;background:var(--g50);border:1px solid var(--g200);border-radius:6px;font-size:11px;color:var(--g600);line-height:1.7">
+      ※本計算は目安です。必ず担当医・管理栄養士の指示に従ってください。診断名・既往歴テキストから自動判定しています。
+    </div>`;
+}
+function calcAgeNum(bd){ if(!bd) return null; const b=new Date(bd),n=new Date(); let a=n.getFullYear()-b.getFullYear(); if(n.getMonth()-b.getMonth()<0||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate())) a--; return a>=0?a:null; }
+function renderCQ(){
+  const p=selP(); const c=document.getElementById('tabContent'); if(!p||!c) return;
+  const cqs=p.cqs||[];
+  const tagFilter=S.cqTagFilter.toLowerCase();
+  const filtered=tagFilter?cqs.filter(cq=>(cq.tags||[]).some(t=>t.toLowerCase()===tagFilter)):cqs;
+  const allTags=[...new Set(cqs.flatMap(cq=>cq.tags||[]))].sort();
+  c.innerHTML=`
+    <div style="background:#fff;border:1px solid var(--g200);border-radius:8px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.05)">
+      <div style="font-size:11px;font-weight:700;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">クリニカルクエスチョン追加</div>
+      <div class="form-group"><label>疑問・クリニカルクエスチョン <span style="color:var(--danger)">*</span></label>
+        <textarea id="cq-question" placeholder="例: CKD患者にメトホルミンは使えるか？" style="min-height:56px;resize:vertical"></textarea></div>
+      <div class="form-group"><label>調べた内容・回答</label>
+        <textarea id="cq-answer" placeholder="調査結果・根拠など" style="min-height:72px;resize:vertical"></textarea></div>
+      <div class="form-group"><label>文献・参考資料</label>
+        <input type="text" id="cq-ref" placeholder="例: NEJM 2022, UpToDate, 治療ガイドライン等"></div>
+      <div class="form-group"><label>指導医コメント</label>
+        <textarea id="cq-sv" placeholder="指導医・上級医からのコメント" style="min-height:48px;resize:vertical"></textarea></div>
+      <div class="form-group"><label>タグ（カンマ区切り）</label>
+        <input type="text" id="cq-tags" placeholder="例: 糖尿病, 腎機能, メトホルミン"></div>
+      <button class="btn btn-primary" onclick="addCQ()">記録する</button>
+    </div>
+    ${allTags.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">
+      <button class="date-pill${!tagFilter?' active':''}" onclick="S.cqTagFilter='';renderCQ()">全て</button>
+      ${allTags.map(t=>`<button class="date-pill${tagFilter===t.toLowerCase()?' active':''}" onclick="S.cqTagFilter=decodeURIComponent('${encodeURIComponent(t)}');renderCQ()">${esc(t)}</button>`).join('')}
+    </div>`:''}
+    ${filtered.length===0?`<div style="text-align:center;padding:24px;color:#bbb;font-size:13px">${cqs.length?'該当するCQがありません':'まだCQが記録されていません'}</div>`:
+    filtered.map(cq=>`<div class="cq-card">
+      <div class="cq-q">${esc(cq.question)}</div>
+      ${cq.answer?`<div class="cq-section"><span class="cq-label">調べた内容</span><div class="cq-body">${esc(cq.answer).replace(/\n/g,'<br>')}</div></div>`:''}
+      ${cq.reference?`<div class="cq-section"><span class="cq-label">文献</span><div class="cq-body cq-ref">${esc(cq.reference)}</div></div>`:''}
+      ${cq.supervisorComment?`<div class="cq-section"><span class="cq-label">指導医コメント</span><div class="cq-body cq-sv">${esc(cq.supervisorComment).replace(/\n/g,'<br>')}</div></div>`:''}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+        <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+          ${(cq.tags||[]).map(t=>`<span class="cq-tag">${esc(t)}</span>`).join('')}
+          <span style="font-size:10px;color:var(--g400);margin-left:4px">${esc(cq.createdAt||'')}</span>
+        </div>
+        <button class="task-del" onclick="deleteCQ('${cq.id}')" title="削除">&#215;</button>
+      </div>
+    </div>`).join('')}`;
+}
+function addCQ(){
+  const p=selP(); if(!p) return;
+  const question=(document.getElementById('cq-question')||{}).value.trim();
+  if(!question){ document.getElementById('cq-question').focus(); return; }
+  const answer=(document.getElementById('cq-answer')||{}).value.trim();
+  const reference=(document.getElementById('cq-ref')||{}).value.trim();
+  const supervisorComment=(document.getElementById('cq-sv')||{}).value.trim();
+  const tagsRaw=(document.getElementById('cq-tags')||{}).value.trim();
+  const tags=tagsRaw?tagsRaw.split(/[,、]+/).map(t=>t.trim()).filter(Boolean):[];
+  if(!p.cqs) p.cqs=[];
+  p.cqs.unshift({id:uid(),question,answer,reference,supervisorComment,tags,createdAt:todayStr()});
+  save(); renderCQ();
+}
+function deleteCQ(id){
+  const p=selP(); if(!p) return;
+  p.cqs=(p.cqs||[]).filter(x=>x.id!==id);
+  save(); renderCQ();
+}
+
+// ================================================================
+// LAB: FLAG & ADD
+// ================================================================
+function getFlag(name,val){
+  const r=LAB_REF[name]; if(!r) return null;
+  if(r.cLo!==undefined&&val<r.cLo) return 'LL';
+  if(r.cHi!==undefined&&val>r.cHi) return 'HH';
+  if(r.lo!==null&&val<r.lo) return 'L';
+  if(r.hi!==null&&val>r.hi) return 'H';
+  return null;
+}
+
+function addLab(){
+  const p=selP(); if(!p) return;
+  const dateEl=document.getElementById('nl-date');
+  const nEl=document.getElementById('nl-name');
+  const cEl=document.getElementById('nl-custom');
+  const vEl=document.getElementById('nl-val');
+  const uEl=document.getElementById('nl-unit');
+  let name=nEl.value;
+  if(name==='__custom__'){ name=cEl?cEl.value.trim():''; if(!name){ cEl&&cEl.focus(); return; } }
+  if(!name){ nEl.focus(); return; }
+  const val=parseFloat(vEl.value); if(isNaN(val)){ vEl.focus(); return; }
+  const ref=LAB_REF[name];
+  const unit=ref?ref.unit:(uEl?uEl.value.trim():'');
+  const date=dateEl&&dateEl.value?dateEl.value:todayStr();
+  const n=new Date();
+  const ts=`${n.getMonth()+1}/${n.getDate()} ${pad(n.getHours())}:${pad(n.getMinutes())}`;
+  p.labs.push({id:uid(),name,val,unit,date,ts});
+  vEl.value=''; save(); renderLab();
+}
+function deleteLab(id){
+  const p=selP(); if(!p) return;
+  p.labs=p.labs.filter(x=>x.id!==id);
+  save(); renderLab();
+}
+function onLabNameChange(el){
+  const v=el.value;
+  const cw=document.getElementById('nl-custom-wrap');
+  const uw=document.getElementById('nl-unit-wrap');
+  const h=document.getElementById('nl-hint');
+  if(v==='__custom__'){
+    if(cw)cw.style.display='inline';if(uw)uw.style.display='inline';if(h)h.textContent='';
+  } else {
+    if(cw)cw.style.display='none';if(uw)uw.style.display='none';
+    if(h&&v&&LAB_REF[v]){ const r=LAB_REF[v]; h.textContent=`${r.unit}  基準: ${r.lo??'?'} ～ ${r.hi??'?'}`; }
+    else if(h) h.textContent='';
+  }
+}
+
+// ================================================================
+// LAB: JSON IMPORT
+// ================================================================
+function parseLabJSON(jsonStr){
+  const data=JSON.parse(jsonStr);
+  const rows=[];
+  const extractRows=(obj,defaultDate)=>{
+    // Format: { date, results:[{name,value},...] } or { date, labs:[...] }
+    if(obj&&typeof obj==='object'&&!Array.isArray(obj)){
+      const date=obj.date||obj.採取日||obj.検査日||obj.検体採取日||defaultDate||todayStr();
+      const arr=obj.results||obj.labs||obj.data||obj.検査結果;
+      if(Array.isArray(arr)){
+        arr.forEach(r=>{
+          const name=r.name||r.項目||r.検査項目||r.item;
+          const val=r.value??r.値??r.val??r.result;
+          if(name&&val!==undefined) rows.push({name:String(name).trim(),val:parseFloat(val),date});
+        });
+        return;
+      }
+      // Format: { date, WBC:8.5, Hb:12.1, ... }
+      Object.entries(obj).forEach(([k,v])=>{
+        if(['date','採取日','検査日','results','labs','data','検査結果','患者名','patient'].includes(k)) return;
+        if(typeof v==='number'||(typeof v==='string'&&!isNaN(parseFloat(v))))
+          rows.push({name:k.trim(),val:parseFloat(v),date});
+      });
+      return;
+    }
+    // Format: array of {date,name,value}
+    if(Array.isArray(obj)){
+      obj.forEach(r=>{
+        const name=r.name||r.項目||r.item;
+        const val=r.value??r.値??r.val;
+        const date=r.date||r.採取日||defaultDate||todayStr();
+        if(name&&val!==undefined) rows.push({name:String(name).trim(),val:parseFloat(val),date});
+      });
+    }
+  };
+  extractRows(data,null);
+  return rows;
+}
+
+function previewImport(){
+  const ta=document.getElementById('import-json');
+  if(!ta) return;
+  const raw=ta.value.trim();
+  if(!raw){ S.importPreview=null; renderLabImport(); return; }
+  try {
+    const rows=parseLabJSON(raw);
+    S.importPreview={ok:true,rows};
+  } catch(e){
+    S.importPreview={ok:false,error:e.message};
+  }
+  renderLabImport();
+}
+
+function confirmImport(){
+  const p=selP(); if(!p||!S.importPreview||!S.importPreview.ok) return;
+  const rows=S.importPreview.rows;
+  const n=new Date();
+  const ts=`${n.getMonth()+1}/${n.getDate()} ${pad(n.getHours())}:${pad(n.getMinutes())}`;
+  rows.forEach(r=>{
+    if(!r.name||isNaN(r.val)) return;
+    const ref=LAB_REF[r.name];
+    const unit=ref?ref.unit:'';
+    p.labs.push({id:uid(),name:r.name,val:r.val,unit,date:r.date||todayStr(),ts});
+  });
+  S.importPreview=null;
+  const ta=document.getElementById('import-json');
+  if(ta) ta.value='';
+  save(); renderLab();
+}
+
+// ================================================================
+// LAB: TSV IMPORT
+// ================================================================
+function parseTSV(text){
+  const rows=[];
+  let defaultDate=todayStr();
+  const lines=text.split(/\r?\n/);
+  for(const raw of lines){
+    const line=raw.trim();
+    if(!line||line.startsWith('#')) continue;
+    // Try tab split first, then comma, then 2+ spaces
+    let cols=line.split('\t');
+    if(cols.length<2) cols=line.split(',');
+    if(cols.length<2) cols=line.split(/\s{2,}/);
+    const trimmed=cols.map(c=>c.trim());
+    if(trimmed.length>=3){
+      // date, name, value
+      const [dateCol,nameCol,valCol]=trimmed;
+      const parsedDate=normalizeDate(dateCol);
+      if(parsedDate){
+        const val=parseFloat(valCol.replace(/[^\d.\-]/g,''));
+        if(nameCol&&!isNaN(val)) rows.push({date:parsedDate,name:nameCol,val});
+      } else {
+        // Maybe order is name, value, date OR name, date, value — try name first
+        const val=parseFloat(trimmed[1].replace(/[^\d.\-]/g,''));
+        const maybeDate=normalizeDate(trimmed[2]);
+        if(!isNaN(val)&&trimmed[0]) rows.push({date:maybeDate||defaultDate,name:trimmed[0],val});
+      }
+    } else if(trimmed.length===2){
+      // Could be: name value (use defaultDate) or a date header line
+      const maybeDate=normalizeDate(trimmed[0]);
+      if(maybeDate&&!trimmed[1]){
+        defaultDate=maybeDate; continue;
+      }
+      const val=parseFloat(trimmed[1].replace(/[^\d.\-]/g,''));
+      if(trimmed[0]&&!isNaN(val)) rows.push({date:defaultDate,name:trimmed[0],val});
+    } else if(trimmed.length===1){
+      // Might be a bare date row acting as header
+      const maybeDate=normalizeDate(trimmed[0]);
+      if(maybeDate) defaultDate=maybeDate;
+    }
+  }
+  return rows;
+}
+
+function normalizeDate(s){
+  if(!s) return null;
+  // YYYY-MM-DD or YYYY/MM/DD
+  let m=s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+  if(m) return `${m[1]}-${pad(parseInt(m[2]))}-${pad(parseInt(m[3]))}`;
+  // MM/DD or M/D (use current year)
+  m=s.match(/^(\d{1,2})[-\/](\d{1,2})$/);
+  if(m){ const yr=new Date().getFullYear(); return `${yr}-${pad(parseInt(m[1]))}-${pad(parseInt(m[2]))}`; }
+  return null;
+}
+
+function previewTSV(){
+  const ta=document.getElementById('import-tsv');
+  if(!ta) return;
+  const raw=ta.value.trim();
+  if(!raw){ S.importPreview=null; renderLabImport(); return; }
+  try {
+    const rows=parseTSV(raw);
+    if(!rows.length) throw new Error('有効なデータが見つかりませんでした');
+    S.importPreview={ok:true,rows};
+  } catch(e){
+    S.importPreview={ok:false,error:e.message};
+  }
+  renderLabImport();
+}
+
+// ================================================================
+// LAB: CHART
+// ================================================================
+function toggleChartItem(name){
+  const idx=S.chartItems.indexOf(name);
+  if(idx>=0) S.chartItems.splice(idx,1);
+  else S.chartItems.push(name);
+  renderLabChart();
+}
+
+function drawLabCharts(){
+  const p=selP(); if(!p) return;
+  const container=document.getElementById('chart-container');
+  if(!container) return;
+  if(!S.chartItems.length){
+    container.innerHTML='<div style="text-align:center;padding:30px;color:#bbb;font-size:13px">左から表示する項目を選択してください</div>';
+    return;
+  }
+  container.innerHTML='';
+  const W=container.offsetWidth||560;
+
+  S.chartItems.forEach(name=>{
+    const entries=p.labs.filter(lv=>lv.name===name&&lv.date).sort((a,b)=>a.date<b.date?-1:1);
+    if(!entries.length) return;
+    // Group by date → latest value
+    const byDate={};
+    entries.forEach(lv=>{ byDate[lv.date]=lv; });
+    const dates=Object.keys(byDate).sort();
+    const vals=dates.map(d=>byDate[d].val);
+    const ref=LAB_REF[name];
+
+    const wrap=document.createElement('div');
+    wrap.className='chart-wrap';
+    const titleDiv=document.createElement('div');
+    titleDiv.className='chart-item-title';
+    titleDiv.innerHTML=`${esc(name)}<span class="ct-unit">${ref?` (${ref.unit})`:''}</span><span class="ct-range">${ref?`基準: ${ref.lo??'?'} ～ ${ref.hi??'?'}`:''}</span>`;
+    wrap.appendChild(titleDiv);
+
+    const canvas=document.createElement('canvas');
+    canvas.width=W-24; canvas.height=150;
+    wrap.appendChild(canvas);
+    container.appendChild(wrap);
+
+    drawSingleChart(canvas,name,dates,vals,ref);
+  });
+}
+
+function drawSingleChart(canvas,name,dates,vals,ref){
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height;
+  const PAD={t:20,r:16,b:38,l:52};
+  const cW=W-PAD.l-PAD.r, cH=H-PAD.t-PAD.b;
+  ctx.clearRect(0,0,W,H);
+
+  // Y range
+  let yMin=Math.min(...vals), yMax=Math.max(...vals);
+  if(ref){ if(ref.lo!=null) yMin=Math.min(yMin,ref.lo); if(ref.hi!=null) yMax=Math.max(yMax,ref.hi); }
+  const yPad=(yMax-yMin)*0.15||1;
+  yMin-=yPad; yMax+=yPad;
+  const toY=v=>PAD.t+cH-((v-yMin)/(yMax-yMin))*cH;
+  const toX=i=>PAD.l+(dates.length>1?i/(dates.length-1)*cW:cW/2);
+
+  // Normal range background
+  if(ref&&ref.lo!=null&&ref.hi!=null){
+    const rT=toY(ref.hi), rB=toY(ref.lo);
+    ctx.fillStyle='rgba(22,163,74,0.07)';
+    ctx.fillRect(PAD.l,rT,cW,rB-rT);
+    ctx.setLineDash([4,3]); ctx.lineWidth=1; ctx.strokeStyle='rgba(22,163,74,0.35)';
+    ctx.beginPath(); ctx.moveTo(PAD.l,rT); ctx.lineTo(PAD.l+cW,rT); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(PAD.l,rB); ctx.lineTo(PAD.l+cW,rB); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Grid lines & Y labels
+  const steps=4;
+  for(let i=0;i<=steps;i++){
+    const y=PAD.t+(i/steps)*cH;
+    const v=yMax-(i/steps)*(yMax-yMin);
+    ctx.strokeStyle='#efefef'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(PAD.l,y); ctx.lineTo(PAD.l+cW,y); ctx.stroke();
+    ctx.fillStyle='#aaa'; ctx.font='10px sans-serif'; ctx.textAlign='right';
+    ctx.fillText(parseFloat(v.toFixed(2)),PAD.l-4,y+4);
+  }
+
+  // Axes
+  ctx.strokeStyle='#ccc'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(PAD.l,PAD.t); ctx.lineTo(PAD.l,PAD.t+cH); ctx.lineTo(PAD.l+cW,PAD.t+cH); ctx.stroke();
+
+  // X labels
+  const maxLabels=Math.min(dates.length,10);
+  const step=Math.ceil(dates.length/maxLabels);
+  ctx.fillStyle='#888'; ctx.font='10px sans-serif'; ctx.textAlign='center';
+  dates.forEach((d,i)=>{
+    if(i%step===0||i===dates.length-1){
+      const x=toX(i);
+      const label=d.slice(5); // MM-DD
+      ctx.fillText(label.replace('-','/'),x,PAD.t+cH+14);
+    }
+  });
+
+  // Line
+  ctx.strokeStyle='#2980b9'; ctx.lineWidth=2; ctx.beginPath();
+  vals.forEach((v,i)=>{ const x=toX(i),y=toY(v); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+  ctx.stroke();
+
+  // Dots + value labels
+  vals.forEach((v,i)=>{
+    const x=toX(i), y=toY(v);
+    const flag=getFlag(name,v);
+    const dotColor=flag?(flag==='HH'||flag==='LL'?'#dc2626':flag==='H'?'#ef4444':'#3b82f6'):'#2980b9';
+    ctx.beginPath(); ctx.fillStyle=dotColor; ctx.arc(x,y,4,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle=dotColor; ctx.font='bold 10px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(v,x,y-8);
+    if(flag){
+      ctx.font='bold 9px sans-serif'; ctx.fillStyle=dotColor;
+      ctx.fillText(flag,x+10,y-8);
+    }
+  });
+}
+
+// ================================================================
+// REPORTS
+// ================================================================
+function renderLabReports(){
+  const p=selP(); const c=document.getElementById('tabContent'); if(!p||!c) return;
+  const CATS=['CT','MRI','X線','心エコー','超音波','心電図','その他'];
+  const reports=p.reports||[];
+  const catClass=cat=>({'CT':'CT','MRI':'MRI','X線':'X線','心エコー':'心エコー','超音波':'超音波','心電図':'other','その他':'other'}[cat]||'other');
+  c.innerHTML=`${labSubNav()}
+    <div style="background:#fff;border:1px solid var(--g200);border-radius:8px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.05)">
+      <div style="font-size:11px;font-weight:700;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">レポート追加</div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
+        <select id="rep-cat" style="padding:5px 7px;border:1px solid var(--g300);border-radius:4px;font-size:12px;font-family:inherit">${CATS.map(c=>`<option>${c}</option>`).join('')}</select>
+        <input type="text" id="rep-title" placeholder="タイトル（例: 入院時胸部CT）" style="flex:1;min-width:150px;padding:5px 8px;border:1px solid var(--g300);border-radius:4px;font-size:12px;font-family:inherit">
+      </div>
+      <textarea id="rep-text" placeholder="所見・レポートを入力…" style="width:100%;min-height:90px;padding:7px 9px;border:1px solid var(--g300);border-radius:4px;font-size:12px;font-family:inherit;resize:vertical;margin-bottom:8px"></textarea>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;background:var(--g50);border:1px solid var(--g300);border-radius:4px;padding:4px 10px;font-size:12px">
+          &#128247; 画像を選択
+          <input type="file" id="rep-img" accept="image/*" style="display:none" onchange="previewReportImg(this)">
+        </label>
+        <span id="rep-img-name" style="font-size:11px;color:var(--g600)"></span>
+        <button class="btn btn-primary btn-sm" onclick="addReport()">保存</button>
+      </div>
+      <div id="rep-img-preview" style="margin-top:8px"></div>
+    </div>
+    ${reports.length===0?'<div style="text-align:center;padding:30px;color:#bbb;font-size:13px">レポートが登録されていません</div>':
+    reports.map(r=>`<div class="report-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="report-cat rcat-${catClass(r.category)}">${esc(r.category)}</span>
+          <span style="font-size:13px;font-weight:700;color:var(--g800)">${esc(r.title||'（タイトルなし）')}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:11px;color:var(--g400)">${esc(r.createdAt||'')}</span>
+          <button class="task-del" onclick="deleteReport('${r.id}')" title="削除">&#215;</button>
+        </div>
+      </div>
+      ${r.imageData?`<img src="${r.imageData}" class="report-img" onclick="this.style.maxHeight=this.style.maxHeight==='none'?'200px':'none'" title="クリックで拡大切替">`:''}
+      ${r.reportText?`<div style="font-size:12px;color:var(--g700);white-space:pre-wrap;line-height:1.7;margin-top:4px">${esc(r.reportText)}</div>`:''}
+    </div>`).join('')}`;
+}
+function previewReportImg(input){
+  const nameEl=document.getElementById('rep-img-name');
+  const prevEl=document.getElementById('rep-img-preview');
+  if(!input.files||!input.files[0]){if(nameEl)nameEl.textContent='';return;}
+  const file=input.files[0];
+  if(nameEl) nameEl.textContent=`${file.name} (${(file.size/1024).toFixed(0)}KB)`;
+  if(prevEl&&file.size>3*1024*1024) prevEl.innerHTML='<div style="color:var(--warning);font-size:11px">&#9888; 3MB超の画像はlocalStorageの容量を超える場合があります</div>';
+  const reader=new FileReader();
+  reader.onload=e=>{ if(prevEl) prevEl.innerHTML=`<img src="${e.target.result}" style="max-height:120px;border-radius:4px;border:1px solid var(--g200);">`; };
+  reader.readAsDataURL(file);
+}
+function addReport(){
+  const p=selP(); if(!p) return;
+  const category=document.getElementById('rep-cat').value;
+  const title=document.getElementById('rep-title').value.trim();
+  const reportText=document.getElementById('rep-text').value.trim();
+  const imgInput=document.getElementById('rep-img');
+  const file=imgInput&&imgInput.files&&imgInput.files[0];
+  if(!title&&!reportText&&!file){document.getElementById('rep-title').focus();return;}
+  const n=new Date(); const ts=`${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())} ${pad(n.getHours())}:${pad(n.getMinutes())}`;
+  const saveEntry=imgData=>{
+    if(!p.reports) p.reports=[];
+    p.reports.unshift({id:uid(),category,title,reportText,imageData:imgData,imageName:file?file.name:'',createdAt:ts});
+    try{save();}catch(ex){alert('画像サイズが大きすぎます。画像なしで保存します。');p.reports[0].imageData='';save();}
+    renderLabReports();
+  };
+  if(file){const reader=new FileReader();reader.onload=e=>saveEntry(e.target.result);reader.readAsDataURL(file);}
+  else saveEntry('');
+}
+function deleteReport(id){
+  const p=selP(); if(!p) return;
+  p.reports=(p.reports||[]).filter(x=>x.id!==id);
+  save(); renderLabReports();
+}
+
+// ================================================================
+// ECHO
+// ================================================================
+function renderLabEcho(){
+  const p=selP(); const c=document.getElementById('tabContent'); if(!p||!c) return;
+  const echos=p.echos||[];
+  const vOpts=['none','mild','moderate','severe'].map((v,i)=>`<option value="${v}">${['なし','mild','moderate','severe'][i]}</option>`).join('');
+  const numField=(id,label,placeholder)=>`<div><div style="font-size:10px;font-weight:700;color:var(--g600);margin-bottom:2px">${label}</div><input type="number" id="${id}" placeholder="${placeholder}" step="0.1" style="width:100%;padding:5px 7px;border:1px solid var(--g300);border-radius:4px;font-size:13px;font-family:inherit"></div>`;
+  const selField=(id,label)=>`<div><div style="font-size:11px;font-weight:700;color:var(--g600);margin-bottom:2px">${label}</div><select id="${id}" style="width:100%;padding:4px 5px;border:1px solid var(--g300);border-radius:4px;font-size:12px;font-family:inherit">${vOpts}</select></div>`;
+  c.innerHTML=`${labSubNav()}
+    <div style="background:#fff;border:1px solid var(--g200);border-radius:8px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.05)">
+      <div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">心エコー入力</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:7px;margin-bottom:10px">
+        ${numField('echo-ef','EF (%)','例: 65')}
+        ${numField('echo-lvdd','LVDd (mm)','例: 48')}
+        ${numField('echo-lvds','LVDs (mm)','例: 30')}
+        ${numField('echo-ea','E/A','例: 1.2')}
+        ${numField('echo-eprime','e\' (cm/s)','例: 8.5')}
+        ${numField('echo-ee','E/e\'','例: 10')}
+        ${numField('echo-ivs','IVS (mm)','例: 9')}
+        ${numField('echo-pw','PW (mm)','例: 9')}
+        ${numField('echo-lavi','LAVI (mL/m²)','例: 28')}
+      </div>
+      <div style="font-size:10px;font-weight:700;color:var(--g600);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">弁逆流</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:12px">
+        ${selField('echo-ar','AR (大動脈弁)')}
+        ${selField('echo-mr','MR (僧帽弁)')}
+        ${selField('echo-tr','TR (三尖弁)')}
+        ${selField('echo-pr','PR (肺動脈弁)')}
+      </div>
+      <button class="btn btn-primary" onclick="addEcho()">保存・自動解析</button>
+    </div>
+    ${echos.length===0?'<div style="text-align:center;padding:30px;color:#bbb;font-size:13px">心エコーデータが登録されていません</div>':
+    echos.map(echo=>{
+      const interp=interpretEcho(echo);
+      const paramDefs=[['EF',echo.ef,'%'],['LVDd',echo.lvdd,'mm'],['LVDs',echo.lvds,'mm'],['E/A',echo.ea,''],['e\'',echo.eprime,'cm/s'],['E/e\'',echo.ee,''],['IVS',echo.ivs,'mm'],['PW',echo.pw,'mm'],['LAVI',echo.lavi,'mL/m²']];
+      const params=paramDefs.filter(([,v])=>v);
+      const valveLbls={ar:'AR',mr:'MR',tr:'TR',pr:'PR'};
+      const valveItems=['ar','mr','tr','pr'].filter(k=>echo[k]&&echo[k]!=='none');
+      return `<div class="echo-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:11px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.05em">心エコー</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:11px;color:var(--g400)">${esc(echo.createdAt||'')}</span>
+            <button class="task-del" onclick="deleteEcho('${echo.id}')" title="削除">&#215;</button>
+          </div>
+        </div>
+        ${params.length?`<div class="echo-grid">${params.map(([name,val,unit])=>`<div class="echo-val"><div class="echo-val-name">${esc(name)}</div><div class="echo-val-num">${esc(val)}${unit?`<span style="font-size:11px;color:var(--g500)">${unit}</span>`:''}</div></div>`).join('')}</div>`:''}
+        ${valveItems.length?`<div style="margin-bottom:6px">${valveItems.map(k=>`<span style="font-size:11px;font-weight:700;margin-right:10px;color:${echo[k]==='severe'?'var(--danger)':echo[k]==='moderate'?'var(--warning)':'var(--g600)'}">${valveLbls[k]}: ${echo[k]}</span>`).join('')}</div>`:''}
+        ${interp.length?`<div style="border-top:1px solid var(--g200);padding-top:8px;margin-top:4px">
+          <div style="font-size:10px;font-weight:700;color:var(--g500);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em">自動解析</div>
+          ${interp.map(it=>`<div class="interp-row interp-${it.cls}"><span class="interp-lbl">${esc(it.label)}</span><span>${esc(it.value)}</span></div>`).join('')}
+        </div>`:''}
+      </div>`;
+    }).join('')}`;
+}
+function addEcho(){
+  const p=selP(); if(!p) return;
+  const gv=id=>{ const el=document.getElementById(id); return el?el.value.trim():''; };
+  const ef=gv('echo-ef'),lvdd=gv('echo-lvdd'),lvds=gv('echo-lvds');
+  const ea=gv('echo-ea'),eprime=gv('echo-eprime'),ee=gv('echo-ee');
+  const ivs=gv('echo-ivs'),pw=gv('echo-pw'),lavi=gv('echo-lavi');
+  const ar=gv('echo-ar'),mr=gv('echo-mr'),tr=gv('echo-tr'),pr=gv('echo-pr');
+  if(!ef&&!lvdd&&!ea){document.getElementById('echo-ef').focus();return;}
+  const n=new Date(); const ts=`${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())} ${pad(n.getHours())}:${pad(n.getMinutes())}`;
+  if(!p.echos) p.echos=[];
+  p.echos.unshift({id:uid(),ef,lvdd,lvds,ea,eprime,ee,ivs,pw,lavi,ar,mr,tr,pr,createdAt:ts});
+  save(); renderLabEcho();
+}
+function deleteEcho(id){
+  const p=selP(); if(!p) return;
+  p.echos=(p.echos||[]).filter(x=>x.id!==id);
+  save(); renderLabEcho();
+}
+function interpretEcho(echo){
+  const res=[];
+  const ef=parseFloat(echo.ef);
+  if(!isNaN(ef)){
+    if(ef>=50) res.push({label:'収縮機能',value:`正常 (EF ${ef}%)`,cls:'ok'});
+    else if(ef>=40) res.push({label:'収縮機能',value:`軽度低下 (EF ${ef}% — HFmrEF)`,cls:'warn'});
+    else res.push({label:'収縮機能',value:`低下 (EF ${ef}% — HFrEF ≥ 中等度心不全)`,cls:'crit'});
+  }
+  const lvdd=parseFloat(echo.lvdd);
+  if(!isNaN(lvdd)&&lvdd>55) res.push({label:'LV拡大',value:`LVDd ${lvdd}mm — 拡大あり (>55mm)`,cls:'warn'});
+  const ivs=parseFloat(echo.ivs), pw=parseFloat(echo.pw);
+  const wallMax=(!isNaN(ivs)&&!isNaN(pw))?Math.max(ivs,pw):!isNaN(ivs)?ivs:!isNaN(pw)?pw:NaN;
+  if(!isNaN(wallMax)){
+    if(wallMax>=13) res.push({label:'壁肥厚',value:`最大${wallMax}mm — 高度肥厚 (≥13mm)、HCM・アミロイドーシス等を考慮`,cls:'crit'});
+    else if(wallMax>=11) res.push({label:'壁肥厚',value:`最大${wallMax}mm — 軽度肥厚 (11-12mm)`,cls:'warn'});
+  }
+  const ea=parseFloat(echo.ea), eprime=parseFloat(echo.eprime), ee=parseFloat(echo.ee), lavi=parseFloat(echo.lavi);
+  const hasDiast=!isNaN(ea)||!isNaN(eprime)||!isNaN(ee)||!isNaN(lavi);
+  if(hasDiast){
+    let pos=0, crit=[];
+    if(!isNaN(eprime)&&eprime<7){pos++;crit.push(`e'=${eprime}<7`);}
+    if(!isNaN(ee)&&ee>14){pos++;crit.push(`E/e'=${ee}>14`);}
+    if(!isNaN(lavi)&&lavi>34){pos++;crit.push(`LAVI=${lavi}>34`);}
+    let grade,cls;
+    if(pos===0){grade='拡張障害なし（正常）';cls='ok';}
+    else if(!isNaN(ea)){
+      if(ea<=0.8){grade='Grade I（弛緩障害型）';cls='warn';}
+      else if(ea>=2){grade='Grade III（拘束型）— 左房圧高度上昇';cls='crit';}
+      else if(pos>=2){grade='Grade II（偽正常化型）— 左房圧上昇';cls='warn';}
+      else{grade='Indeterminate（判定不能）';cls='neutral';}
+    } else {grade=`異常所見あり（${pos}/3 criteria陽性）`;cls='warn';}
+    res.push({label:'拡張障害',value:`${grade}${crit.length?' ['+crit.join(', ')+']':''}`,cls});
+  }
+  const valveDefs=[{k:'ar',l:'AR（大動脈弁逆流）'},{k:'mr',l:'MR（僧帽弁逆流）'},{k:'tr',l:'TR（三尖弁逆流）'},{k:'pr',l:'PR（肺動脈弁逆流）'}];
+  valveDefs.forEach(v=>{
+    if(echo[v.k]&&echo[v.k]!=='none'){
+      const cls=echo[v.k]==='severe'?'crit':echo[v.k]==='moderate'?'warn':'neutral';
+      res.push({label:v.l,value:echo[v.k]+({severe:'— 重症：手術適応の評価を',moderate:'— 中等度：経過観察',mild:'— 軽度'}[echo[v.k]]||''),cls});
+    }
+  });
+  if(echo.tr&&echo.tr!=='none'){
+    const trMsg=echo.tr==='severe'?'— 右心不全・肺高血圧の積極評価を':echo.tr==='moderate'?'— 肺動脈圧推定を検討':'';
+    if(trMsg) res.push({label:'右心系評価',value:`TR ${echo.tr} ${trMsg}`,cls:echo.tr==='severe'?'crit':'warn'});
+  }
+  return res;
+}
+
+// ================================================================
+// MEMO
+// ================================================================
+function saveMemo(){ const p=selP(); if(!p) return; const el=document.getElementById('memoArea'); if(el){p.memo=el.value;save();} }
+function savePhysicalFindings(){ const p=selP(); if(!p) return; const el=document.getElementById('physFindArea'); if(el){p.physicalFindings=el.value;save();} }
+function saveSubjective(){ const p=selP(); if(!p) return; const el=document.getElementById('subjectiveArea'); if(el){p.subjective=el.value;save();} }
+
+// ================================================================
+// AI ASSISTANT
+// ================================================================
+function getApiKey(){ return localStorage.getItem('claude_api_key')||''; }
+function saveApiKey(){
+  const el=document.getElementById('ai-key-input'); if(!el) return;
+  localStorage.setItem('claude_api_key',el.value.trim());
+  const b=document.getElementById('ai-save-msg');
+  if(b){ b.textContent='保存しました'; setTimeout(()=>{ b.textContent=''; },2000); }
+}
+function buildCtx(p){
+  const lines=[`患者: ${p.name}`];
+  if(p.diag) lines.push(`診断: ${p.diag}`);
+  if(p.room) lines.push(`病室: ${p.room}`);
+  if(p.date) lines.push(`入院日: ${p.date}`);
+  if(p.labs&&p.labs.length){
+    lines.push('\n【最新検査値】');
+    const byName={};
+    p.labs.forEach(lv=>{ if(!byName[lv.name]||lv.date>=byName[lv.name].date) byName[lv.name]=lv; });
+    Object.entries(byName).forEach(([name,lv])=>{
+      const flag=getFlag(name,lv.val);
+      const ref=LAB_REF[name];
+      const rng=ref?`(基準: ${ref.lo??'?'}-${ref.hi??'?'} ${ref.unit})`:'';
+      lines.push(`  ${name}: ${lv.val} ${lv.unit} ${rng}${flag?` ← [${flag}]`:''}`);
+    });
+  }
+  const iv=p.tasks.filter(t=>t.cat==='点滴・輸液');
+  if(iv.length){ lines.push('\n【点滴・輸液】'); iv.forEach(t=>lines.push(`  - ${t.text}`)); }
+  const med=p.tasks.filter(t=>t.cat==='内服薬');
+  if(med.length){ lines.push('\n【内服薬】'); med.forEach(t=>lines.push(`  - ${t.text}`)); }
+  if(p.memo&&p.memo.trim()) lines.push(`\n【メモ】\n${p.memo}`);
+  return lines.join('\n');
+}
+
+function buildClipboardText(p){
+  const lines=['以下の患者情報を臨床的に分析して、異常値へのコメント・薬剤の注意点・今日の観察ポイントを教えてください：',''];
+  lines.push(`【患者基本情報】`);
+  lines.push(`患者名: ${p.name}`);
+  if(p.room)  lines.push(`病室: ${p.room}`);
+  if(p.diag)  lines.push(`診断名: ${p.diag}`);
+  if(p.date)  lines.push(`入院日: ${p.date}`);
+  if(p.birthdate) lines.push(`生年月日: ${p.birthdate} ${calcAge(p.birthdate)}`);
+  if(p.height||p.weight) lines.push(`身体: 身長${p.height||'?'}cm 体重${p.weight||'?'}kg${(p.height&&p.weight)?` BMI${calcBMI(p.height,p.weight)}`:''}`);
+  if(p.adl) lines.push(`ADL: ${p.adl}`);
+  if(p.pastHistory) lines.push(`\n【既往歴】\n${p.pastHistory}`);
+  if(p.allergies)   lines.push(`\n【アレルギー】\n${p.allergies}`);
+  if(p.familyHistory) lines.push(`\n【家族歴】\n${p.familyHistory}`);
+  const med=p.tasks.filter(t=>t.cat==='内服薬');
+  if(med.length){
+    lines.push('');
+    lines.push('【内服薬一覧】');
+    med.forEach(t=>lines.push(`  - ${t.text}`));
+  }
+  if(p.labs&&p.labs.length){
+    lines.push('');
+    lines.push('【最新検査値】');
+    const byName={};
+    p.labs.forEach(lv=>{ if(!byName[lv.name]||lv.date>=byName[lv.name].date) byName[lv.name]=lv; });
+    Object.entries(byName).forEach(([name,lv])=>{
+      const flag=getFlag(name,lv.val);
+      const ref=LAB_REF[name];
+      const rng=ref?` (基準: ${ref.lo??'?'}-${ref.hi??'?'} ${ref.unit})`:'';
+      lines.push(`  ${name}: ${lv.val}${lv.unit?` ${lv.unit}`:''}${rng}${flag?` ← [${flag}]`:''}`);
+    });
+  }
+  const unfinished=p.tasks.filter(t=>t.status==='pending'||t.status==='check');
+  if(unfinished.length){
+    lines.push('');
+    lines.push('【今日の未実施・要確認タスク】');
+    unfinished.forEach(t=>lines.push(`  [${t.status==='check'?'要確認':'未実施'}] ${t.text}（${t.cat}）`));
+  }
+  if(p.ivLines&&p.ivLines.length){
+    lines.push('');
+    lines.push('【点滴・輸液詳細】');
+    p.ivLines.forEach(iv=>{
+      const parts=[iv.drug];
+      if(iv.dose) parts.push(iv.dose);
+      if(iv.rate) parts.push(`${iv.rate}mL/h`);
+      if(iv.start) parts.push(`開始 ${iv.start}`);
+      if(iv.end) parts.push(`終了予定 ${iv.end}`);
+      lines.push(`  ・${parts.join('  ')}`);
+    });
+  }
+  if(p.medications&&p.medications.length){
+    lines.push('');
+    lines.push('【内服薬詳細】');
+    p.medications.forEach(med=>{
+      const timing=[med.am&&'朝',med.noon&&'昼',med.pm&&'夕',med.bed&&'眠前'].filter(Boolean).join('・');
+      lines.push(`  ・${med.drug}${med.dose?` ${med.dose}`:''}${timing?` (${timing})`:''}`);
+    });
+  }
+  if(p.physicalFindings&&p.physicalFindings.trim()){
+    lines.push('');
+    lines.push('【身体所見】');
+    lines.push(p.physicalFindings.trim());
+  }
+  if(p.subjective&&p.subjective.trim()){
+    lines.push('');
+    lines.push('【S情報（患者の訴え）】');
+    lines.push(p.subjective.trim());
+  }
+  if(p.memo&&p.memo.trim()){
+    lines.push('');
+    lines.push('【メモ】');
+    lines.push(p.memo.trim());
+  }
+  if((p.ivLines&&p.ivLines.length)||(p.medications&&p.medications.length)||p.tasks.some(t=>t.cat==='内服薬'||t.cat==='点滴・輸液')){
+    lines.push('');
+    lines.push('上記の薬剤について、腎機能・既往歴を踏まえた相互作用・用量調整の必要性・中止すべき薬剤を教えてください。');
+  }
+  return lines.join('\n');
+}
+
+async function copyPatientInfo(){
+  const p=selP(); if(!p) return;
+  const text=buildClipboardText(p);
+  try {
+    await navigator.clipboard.writeText(text);
+    showCopyMsg();
+  } catch(e){
+    // Fallback for non-HTTPS
+    const ta=document.createElement('textarea');
+    ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showCopyMsg();
+  }
+}
+
+function showCopyMsg(){
+  const el=document.getElementById('copy-msg');
+  if(!el) return;
+  el.style.display='block';
+  setTimeout(()=>{ el.style.display='none'; },3500);
+}
+async function runAI(){
+  const key=getApiKey();
+  if(!key){ alert('APIキーを入力・保存してください'); return; }
+  const p=selP(); if(!p) return;
+  S.aiLoading=true; S.aiResult=''; renderAI();
+  const prompt=`あなたは経験豊富な内科医のアシスタントです。以下の患者情報を分析し、看護師・医療チーム向けに簡潔かつ実用的な情報を提供してください。\n\n患者情報:\n${buildCtx(p)}\n\n以下の4項目を分析し、各項目は【】で区切って日本語で回答してください:\n【1. 異常検査値へのコメント】異常値の臨床的意義と対処の優先度。正常のみなら「特記なし」。\n【2. 薬剤の注意点】副作用・相互作用リスク。情報不足なら「情報不十分」。\n【3. 病態と治療の整合性】診断名と検査値・治療の整合性。\n【4. 本日の観察ポイント】特に注意すべき事項を3〜5点。\n各項目は3〜5行以内。重大な異常は「要注意」と明記。`;
+  try {
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1200,messages:[{role:'user',content:prompt}]}),
+    });
+    if(!res.ok){ const e=await res.json(); throw new Error(e.error?.message||`HTTP ${res.status}`); }
+    const data=await res.json();
+    S.aiResult=data.content[0].text;
+  } catch(e){ S.aiResult=`エラー: ${e.message}`; }
+  S.aiLoading=false; renderAI();
+}
+
+// ================================================================
+// RENDER MAIN
+// ================================================================
+function render(){ renderSidebar(); renderMain(); }
+
+function renderSidebar(){
+  const list=document.getElementById('patientList'); if(!list) return;
+  const filterEl=document.getElementById('sidebarFilter');
+  const hospitals=[...new Set(S.patients.filter(p=>p.hospital&&!p.archived).map(p=>p.hospital))];
+  const archCount=S.patients.filter(p=>p.archived).length;
+  if(filterEl){
+    filterEl.innerHTML=(hospitals.length||archCount)?`<div class="sb-filter"><div class="sbf-pills">
+      <button class="sbf-pill${S.hospitalFilter==='all'?' active':''}" onclick="S.hospitalFilter='all';renderSidebar()">全て</button>
+      ${hospitals.map(h=>`<button class="sbf-pill${S.hospitalFilter===h?' active':''}" onclick="S.hospitalFilter=decodeURIComponent('${encodeURIComponent(h)}');renderSidebar()">${esc(h)}</button>`).join('')}
+      ${archCount?`<button class="sbf-pill arch${S.hospitalFilter==='__archived__'?' active':''}" onclick="S.hospitalFilter='__archived__';renderSidebar()">退院(${archCount})</button>`:''}
+    </div></div>`:'';
+  }
+  let visible;
+  if(S.hospitalFilter==='__archived__') visible=S.patients.filter(p=>p.archived);
+  else if(S.hospitalFilter==='all') visible=S.patients.filter(p=>!p.archived);
+  else visible=S.patients.filter(p=>!p.archived&&p.hospital===S.hospitalFilter);
+  if(!visible.length){
+    list.innerHTML=`<div style="padding:14px;text-align:center;opacity:.45;font-size:11px">${S.hospitalFilter==='__archived__'?'退院患者はいません':'患者がいません'}</div>`;
+    return;
+  }
+  list.innerHTML=visible.map(p=>{
+    const done=p.tasks.filter(t=>t.status==='done').length;
+    const check=p.tasks.filter(t=>t.status==='check').length;
+    const total=p.tasks.length, rem=total-done-check;
+    let badge='';
+    if(check>0) badge=`<span class="task-badge has-check">${check}要確認</span>`;
+    else if(rem>0) badge=`<span class="task-badge">${rem}件残</span>`;
+    else if(total>0) badge=`<span class="task-badge all-done">完了</span>`;
+    return `<div class="pt-card${p.id===S.sel?' active':''}" onclick="selectPatient('${p.id}')">
+      <div class="pt-name">${esc(p.name)}</div>
+      <div class="pt-meta"><span class="pt-room">${esc(p.room||'病室未設定')}</span>${badge}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderMain(){
+  const area=document.getElementById('mainArea');
+  const p=selP();
+  if(!p){ area.innerHTML=`<div class="empty-state"><div style="font-size:44px;opacity:.15">+</div><div>患者を選択または追加してください</div></div>`; return; }
+  area.innerHTML=`
+    <div class="pt-header">
+      <h2>${esc(p.name)}</h2>
+      ${p.room?`<span class="tag tag-room">${esc(p.room)}</span>`:''}
+      ${p.diag?`<span class="tag tag-diag">${esc(p.diag)}</span>`:''}
+      ${p.date?`<span style="font-size:11px;color:#999">入院: ${esc(p.date)}</span>`:''}
+      <div class="header-actions">
+        <button class="btn btn-ghost" style="font-size:11px;padding:3px 9px" onclick="openEditModal()">編集</button>
+        ${p.archived?`<button class="btn btn-ghost" style="font-size:11px;padding:3px 9px;color:var(--success);border:1px solid #86efac" onclick="unarchivePatient()">復帰</button>`:`<button class="btn btn-ghost" style="font-size:11px;padding:3px 9px;color:var(--g600)" onclick="archivePatient()">退院</button>`}
+        <button class="btn" style="font-size:11px;padding:3px 9px;color:var(--danger);border:1px solid #fca5a5;background:transparent" onclick="deletePatient()">削除</button>
+      </div>
+    </div>
+    <div class="tabs" style="overflow-x:auto">
+      <button class="tab-btn${S.tab==='tasks'?' active':''}" onclick="switchTab('tasks')">タスク</button>
+      <button class="tab-btn${S.tab==='lab'?' active':''}" onclick="switchTab('lab')">検査値</button>
+      <button class="tab-btn${S.tab==='ai'?' active':''}" onclick="switchTab('ai')">AIアシスタント</button>
+      <button class="tab-btn${S.tab==='summary'?' active':''}" onclick="switchTab('summary')">入院サマリ</button>
+      <button class="tab-btn${S.tab==='memo'?' active':''}" onclick="switchTab('memo')">メモ</button>
+      <button class="tab-btn${S.tab==='nutrition'?' active':''}" onclick="switchTab('nutrition')">栄養評価</button>
+      <button class="tab-btn${S.tab==='cq'?' active':''}" onclick="switchTab('cq')">CQ記録</button>
+    </div>
+    <div class="tab-content" id="tabContent"></div>`;
+  renderTab();
+}
+
+function switchTab(tab){
+  S.tab=tab;
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>{ b.classList.toggle('active',['tasks','lab','ai','summary','memo','nutrition','cq'][i]===tab); });
+  renderTab();
+}
+function renderTab(){
+  if(S.tab==='tasks')   renderTasks();
+  else if(S.tab==='lab')     renderLab();
+  else if(S.tab==='ai')      renderAI();
+  else if(S.tab==='summary') renderSummary();
+  else if(S.tab==='nutrition') renderNutrition();
+  else if(S.tab==='cq') renderCQ();
+  else renderMemo();
+}
+
+// ================================================================
+// RENDER TASKS
+// ================================================================
+function renderTasks(){
+  const p=selP(); const c=document.getElementById('tabContent'); if(!p||!c) return;
+  const done=p.tasks.filter(t=>t.status==='done').length;
+  const check=p.tasks.filter(t=>t.status==='check').length;
+  const total=p.tasks.length, pend=total-done-check;
+  const pct=total?Math.round(done/total*100):0;
+  const summary=`<div class="tasks-summary">
+    <div class="s-stat"><div class="s-num n-done">${done}</div><div class="s-lbl">実施済み</div></div>
+    <div class="s-stat"><div class="s-num n-check">${check}</div><div class="s-lbl">要確認</div></div>
+    <div class="s-stat"><div class="s-num n-pend">${pend}</div><div class="s-lbl">未実施</div></div>
+    <div class="prog-bar">
+      <div class="prog-info"><span>進捗</span><span>${pct}%</span></div>
+      <div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>
+    </div>
+  </div>`;
+  const groups=CATEGORIES.map(cat=>{
+    const tasks=p.tasks.filter(t=>t.cat===cat.name);
+    const cd=tasks.filter(t=>t.status==='done').length;
+    const cc=tasks.filter(t=>t.status==='check').length;
+    const collapsed=!!S.collapsed[cat.name];
+    const cntCls=cc>0?'c-check':cd===tasks.length&&tasks.length>0?'c-done':'';
+    const safeId='ci-'+btoa(encodeURIComponent(cat.name)).replace(/=/g,'');
+    const items=tasks.map(t=>{
+      const lbl=t.status==='done'?`&#10003; ${esc(t.doneAt||'')}`:t.status==='check'?'要確認':'未実施';
+      return `<div class="task-item s-${t.status}">
+        <button class="status-btn" onclick="cycleStatus('${t.id}')">${lbl}</button>
+        <span class="task-text">${esc(t.text)}</span>
+        <button class="task-del" onclick="deleteTask('${t.id}')">&#215;</button>
+      </div>`;
+    }).join('');
+    return `<div class="cat-group">
+      <div class="cat-hdr" onclick="toggleCollapse('${esc(cat.name)}')">
+        <div class="cat-icon" style="background:${cat.color}">${cat.abbr}</div>
+        <span class="cat-title">${esc(cat.name)}</span>
+        <span class="cat-count ${cntCls}">${tasks.length?`${cd}/${tasks.length}`:''}</span>
+        <span class="cat-arrow">${collapsed?'&#9654;':'&#9660;'}</span>
+      </div>
+      ${collapsed?'':` <div class="cat-body">
+        ${tasks.length===0?'<div class="cat-empty">タスクがありません</div>':''}
+        ${items}
+        ${cat.name==='点滴・輸液'?renderIVSection(p):''}
+        ${cat.name==='内服薬'?renderMedSection(p):''}
+        <div class="add-inline">
+          <input type="text" id="${safeId}" placeholder="タスクを追加..."
+            onkeydown="if(event.key==='Enter')addCustomTask_byId('${safeId}','${esc(cat.name)}')">
+          <button class="btn btn-primary btn-sm" onclick="addCustomTask_byId('${safeId}','${esc(cat.name)}')">追加</button>
+          ${cat.defaults.length?`<button class="tmpl-btn" onclick="addTemplates('${esc(cat.name)}')">テンプレ追加</button>`:''}
+        </div>
+      </div>`}
+    </div>`;
+  }).join('');
+  c.innerHTML=summary+groups;
+}
+
+// ================================================================
+// RENDER LAB (dispatcher)
+// ================================================================
+function labSubNav(){
+  const views=[['cards','最新値'],['bydate','日付別'],['table','推移表'],['chart','グラフ'],['import','インポート'],['reports','レポート'],['echo','心エコー']];
+  return `<div class="lab-subnav">${views.map(([v,l])=>`<button class="lsn-btn${S.labView===v?' active':''}" onclick="setLabView('${v}')">${l}</button>`).join('')}</div>`;
+}
+function setLabView(v){ S.labView=v; renderLab(); }
+function renderLab(){
+  if(S.labView==='table')    renderLabTable();
+  else if(S.labView==='chart')   renderLabChart();
+  else if(S.labView==='import')  renderLabImport();
+  else if(S.labView==='bydate')  renderLabByDate();
+  else if(S.labView==='reports') renderLabReports();
+  else if(S.labView==='echo')    renderLabEcho();
+  else renderLabCards();
+}
+
+// ── CARDS ─────────────────────────────────────────────────
+function labAddForm(){
+  return `<div class="lab-add">
+    <div class="lab-add-title">検査値入力</div>
+    <div class="lab-form-row">
+      <input type="date" id="nl-date" value="${todayStr()}" style="width:130px">
+      <select id="nl-name" onchange="onLabNameChange(this)" style="width:120px">
+        <option value="">項目を選択</option>
+        ${LAB_NAMES.map(n=>`<option value="${n}">${n}</option>`).join('')}
+        <option value="__custom__">カスタム...</option>
+      </select>
+      <span id="nl-custom-wrap" style="display:none"><input type="text" id="nl-custom" placeholder="項目名" style="width:90px"></span>
+      <input type="number" id="nl-val" placeholder="値" step="any" style="width:75px" onkeydown="if(event.key==='Enter')addLab()">
+      <span id="nl-unit-wrap" style="display:none"><input type="text" id="nl-unit" placeholder="単位" style="width:65px"></span>
+      <span class="unit-hint" id="nl-hint"></span>
+      <button class="btn btn-primary btn-sm" onclick="addLab()">記録</button>
+    </div>
+  </div>`;
+}
+
+function renderLabCards(){
+  const p=selP(); const c=document.getElementById('tabContent'); if(!p||!c) return;
+  const byName={};
+  p.labs.forEach(lv=>{ if(!byName[lv.name]) byName[lv.name]=[]; byName[lv.name].push(lv); });
+  const criticals=[];
+  const cards=Object.entries(byName).map(([name,entries])=>{
+    const latest=entries.sort((a,b)=>a.date<b.date?1:-1)[0];
+    const flag=getFlag(name,latest.val);
+    if(flag==='HH'||flag==='LL') criticals.push(name);
+    const ref=LAB_REF[name];
+    const cls=flag?`f${flag}`:'';
+    const range=ref?`基準: ${ref.lo!==null?ref.lo:'?'} ～ ${ref.hi!==null?ref.hi:'?'} ${ref.unit}`:'';
+    return `<div class="lab-card ${cls}">
+      ${flag?`<span class="lc-flag">${flag}</span>`:''}
+      <div class="lc-name">${esc(name)}</div>
+      <div><span class="lc-val">${latest.val}</span><span class="lc-unit">${esc(latest.unit)}</span></div>
+      ${range?`<div class="lc-range">${range}</div>`:''}
+      <div class="lc-ts">${esc(latest.date||'')} ${esc(latest.ts||'')}</div>
+      ${entries.length>1?`<div class="lc-ts">計 ${entries.length} 件</div>`:''}
+      <button class="lc-del" onclick="deleteLab('${latest.id}')" title="削除">&#215;</button>
+    </div>`;
+  }).join('');
+  const alert=criticals.length?`<div class="critical-alert"><span class="c-lbl">&#9888; 危険値</span><span class="c-body">${esc(criticals.join('、'))} — 至急確認してください</span></div>`:'';
+  c.innerHTML=labSubNav()+alert+
+    (Object.keys(byName).length?`<div class="lab-grid">${cards}</div>`:'<div style="text-align:center;padding:20px;color:#bbb;font-size:13px;margin-bottom:14px">検査値が登録されていません</div>')+
+    labAddForm();
+}
+
+// ── TABLE ─────────────────────────────────────────────────
+function renderLabTable(){
+  const p=selP(); const c=document.getElementById('tabContent'); if(!p||!c) return;
+  const dateSet=new Set(), nameSet=new Set();
+  p.labs.forEach(lv=>{ if(lv.date) dateSet.add(lv.date); nameSet.add(lv.name); });
+  const dates=[...dateSet].sort();
+  const names=[...nameSet];
+  let tableHtml='<div style="text-align:center;padding:20px;color:#bbb;font-size:13px">検査値がありません</div>';
+  if(dates.length&&names.length){
+    const map={};
+    p.labs.forEach(lv=>{ if(!lv.date) return; if(!map[lv.name]) map[lv.name]={}; const ex=map[lv.name][lv.date]; if(!ex||lv.date>=ex.date) map[lv.name][lv.date]=lv; });
+    tableHtml=`<div class="lab-matrix-wrap"><table class="lab-matrix">
+      <thead><tr><th class="name-th">項目</th>${dates.map(d=>`<th>${esc(d.slice(5).replace('-','/'))}</th>`).join('')}</tr></thead>
+      <tbody>${names.map(name=>{
+        const ref=LAB_REF[name];
+        const unit=ref?ref.unit:'';
+        const range=ref?`${ref.lo??'?'}-${ref.hi??'?'}`:'';
+        return `<tr>
+          <td class="name-td">${esc(name)}<span class="lm-unit">${esc(unit)}</span>${range?`<span class="lm-range">${range}</span>`:''}</td>
+          ${dates.map(d=>{
+            const lv=map[name]&&map[name][d];
+            if(!lv) return '<td class="empty-td">—</td>';
+            const flag=getFlag(name,lv.val);
+            const cls=flag?`c${flag}`:'';
+            const sup=flag?`<span class="flag-sup">${flag}</span>`:'';
+            return `<td class="${cls}">${lv.val}${sup}</td>`;
+          }).join('')}
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+  }
+  c.innerHTML=labSubNav()+tableHtml+'<div style="margin-top:14px">'+labAddForm()+'</div>';
+}
+
+// ── CHART ─────────────────────────────────────────────────
+function renderLabChart(){
+  const p=selP(); const c=document.getElementById('tabContent'); if(!p||!c) return;
+  const names=[...new Set(p.labs.map(lv=>lv.name))].sort();
+  c.innerHTML=`${labSubNav()}<div class="chart-panel">
+    <div class="chart-items-col">
+      <h4>表示項目</h4>
+      ${names.length===0?'<div style="color:#bbb;font-size:12px">データなし</div>':names.map(name=>`
+        <label class="chart-item-label">
+          <input type="checkbox" ${S.chartItems.includes(name)?'checked':''} onchange="toggleChartItem('${esc(name)}')">
+          <span>${esc(name)}</span>
+        </label>`).join('')}
+      ${names.length>0?`<div style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="S.chartItems=[];renderLabChart()">クリア</button></div>`:''}
+    </div>
+    <div class="chart-main" id="chart-container">
+      <div style="text-align:center;padding:30px;color:#bbb;font-size:13px">左から表示する項目を選択してください</div>
+    </div>
+  </div>`;
+  if(S.chartItems.length) setTimeout(()=>drawLabCharts(),30);
+}
+
+// ── BY DATE ───────────────────────────────────────────────
+function renderLabByDate(){
+  const p=selP(); const c=document.getElementById('tabContent'); if(!p||!c) return;
+  const dates=[...new Set(p.labs.filter(lv=>lv.date).map(lv=>lv.date))].sort().reverse();
+  if(!dates.length){
+    c.innerHTML=labSubNav()+'<div style="text-align:center;padding:30px;color:#bbb;font-size:13px">検査値がありません</div>'+'<div style="margin-top:14px">'+labAddForm()+'</div>';
+    return;
+  }
+  if(!S.labSelDate||!dates.includes(S.labSelDate)) S.labSelDate=dates[0];
+  const selDate=S.labSelDate;
+  const entries=p.labs.filter(lv=>lv.date===selDate);
+  const criticals=[];
+  const cards=entries.map(lv=>{
+    const flag=getFlag(lv.name,lv.val);
+    if(flag==='HH'||flag==='LL') criticals.push(lv.name);
+    const ref=LAB_REF[lv.name];
+    const cls=flag?`f${flag}`:'';
+    const range=ref?`基準: ${ref.lo!==null?ref.lo:'?'} ～ ${ref.hi!==null?ref.hi:'?'} ${ref.unit}`:'';
+    return `<div class="lab-card ${cls}">
+      ${flag?`<span class="lc-flag">${flag}</span>`:''}
+      <div class="lc-name">${esc(lv.name)}</div>
+      <div><span class="lc-val">${lv.val}</span><span class="lc-unit">${esc(lv.unit)}</span></div>
+      ${range?`<div class="lc-range">${range}</div>`:''}
+      <div class="lc-ts">${esc(lv.ts||'')}</div>
+      <button class="lc-del" onclick="deleteLab('${lv.id}')" title="削除">&#215;</button>
+    </div>`;
+  }).join('');
+  const alert=criticals.length?`<div class="critical-alert"><span class="c-lbl">&#9888; 危険値</span><span class="c-body">${esc(criticals.join('、'))} — 至急確認してください</span></div>`:'';
+  const pills=dates.map(d=>{
+    const mm=d.slice(5).replace('-','/');
+    const cnt=p.labs.filter(lv=>lv.date===d).length;
+    return `<button class="date-pill${d===selDate?' active':''}" onclick="S.labSelDate='${d}';renderLabByDate()">${mm} <span style="font-size:10px;opacity:.7">(${cnt}件)</span></button>`;
+  }).join('');
+  c.innerHTML=labSubNav()+
+    `<div class="date-pills">${pills}</div>`+
+    alert+
+    (entries.length?`<div class="lab-grid">${cards}</div>`:'<div style="padding:16px;color:#bbb;font-size:13px">この日付のデータはありません</div>')+
+    '<div style="margin-top:14px">'+labAddForm()+'</div>';
+}
+
+// ── IMPORT ────────────────────────────────────────────────
+function importModeToggle(){
+  return `<div class="import-mode-toggle">
+    <button class="imt-btn${S.importMode==='json'?' active':''}" onclick="S.importMode='json';S.importPreview=null;renderLabImport()">JSON</button>
+    <button class="imt-btn${S.importMode==='tsv'?' active':''}" onclick="S.importMode='tsv';S.importPreview=null;renderLabImport()">タブ区切り / CSV</button>
+  </div>`;
+}
+
+function importPreviewHtml(){
+  if(!S.importPreview) return '';
+  if(!S.importPreview.ok){
+    return `<div class="import-preview"><span class="import-err">解析エラー: ${esc(S.importPreview.error)}</span></div>`;
+  }
+  const rows=S.importPreview.rows;
+  return `<div class="import-preview">
+    <div style="font-size:11px;font-weight:700;color:#666;margin-bottom:8px">${rows.length} 件のデータを検出</div>
+    ${rows.slice(0,25).map(r=>{
+      const flag=getFlag(r.name,r.val);
+      const ref=LAB_REF[r.name];
+      const unit=ref?ref.unit:'';
+      const cls=flag?(flag==='HH'||flag==='LL'?'import-err':'import-warn'):'import-ok';
+      return `<div class="import-preview-row">
+        <span class="${cls}">${flag||'正常'}</span>
+        <span style="min-width:60px;font-weight:600">${esc(r.name)}</span>
+        <span>${r.val} ${esc(unit)}</span>
+        <span style="color:#aaa;font-size:11px">${esc(r.date||'日付なし')}</span>
+      </div>`;
+    }).join('')}
+    ${rows.length>25?`<div style="color:#aaa;font-size:11px;margin-top:4px">他 ${rows.length-25} 件...</div>`:''}
+  </div>
+  <div style="margin-top:10px;display:flex;gap:8px">
+    <button class="btn btn-primary" onclick="confirmImport()">確定して保存（${rows.length}件）</button>
+    <button class="btn btn-ghost btn-sm" onclick="S.importPreview=null;renderLabImport()">キャンセル</button>
+  </div>`;
+}
+
+function renderLabImport(){
+  const p=selP(); const c=document.getElementById('tabContent'); if(!p||!c) return;
+  let bodyHtml='';
+  if(S.importMode==='json'){
+    const samplePrompt=`以下のJSON形式で検査結果を出力してください：
+{
+  "date": "YYYY-MM-DD",
+  "results": [
+    {"name": "WBC", "value": 8.5},
+    {"name": "Hb",  "value": 12.1},
+    {"name": "K",   "value": 3.8}
+  ]
+}`;
+    bodyHtml=`
+    <div class="import-prompt-box">
+      <div class="import-prompt-title">ChatGPT / Claude への指示プロンプト（検査画像と一緒に送る）</div>
+      <div class="import-prompt-code">${esc(samplePrompt)}</div>
+    </div>
+    <div style="font-size:11px;font-weight:700;color:#666;margin-bottom:6px">JSONを貼り付け</div>
+    <textarea class="import-json-area" id="import-json" placeholder='{ "date": "2026-06-27", "results": [{"name":"WBC","value":8.5},...] }'></textarea>
+    <div style="margin-top:8px;display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="previewImport()">プレビュー</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('import-json').value='';S.importPreview=null;renderLabImport()">クリア</button>
+    </div>
+    ${importPreviewHtml()}`;
+  } else {
+    const tsvSample=`2026-06-27\tWBC\t8.5
+2026-06-27\tHb\t12.1
+2026-06-27\tK\t3.8
+2026-06-27\tCRP\t0.05`;
+    bodyHtml=`
+    <div class="import-prompt-box" style="background:#f0fdf4;border-color:#bbf7d0">
+      <div class="import-prompt-title" style="color:#166534">タブ区切り形式（日付・項目名・数値 の3列）</div>
+      <div class="import-prompt-code" style="color:#14532d">${esc(tsvSample)}</div>
+      <div style="margin-top:8px;font-size:11px;color:#166534">
+        ・列区切りはタブ・カンマ・2スペース以上に対応<br>
+        ・日付列は YYYY-MM-DD / YYYY/MM/DD / MM/DD いずれも可<br>
+        ・日付列を省略した2列形式でも可（日付は直前の日付行 or 今日を使用）<br>
+        ・# で始まる行はコメントとして無視
+      </div>
+    </div>
+    <div style="font-size:11px;font-weight:700;color:#666;margin-bottom:6px">データを貼り付け</div>
+    <textarea class="import-json-area" id="import-tsv" placeholder="2026-06-27&#9;WBC&#9;8.5&#10;2026-06-27&#9;Hb&#9;12.1"></textarea>
+    <div style="margin-top:8px;display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="previewTSV()">プレビュー</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('import-tsv').value='';S.importPreview=null;renderLabImport()">クリア</button>
+    </div>
+    ${importPreviewHtml()}`;
+  }
+  c.innerHTML=`${labSubNav()}<div class="import-panel">${importModeToggle()}${bodyHtml}</div>`;
+}
+
+// ================================================================
+// RENDER AI
+// ================================================================
+function renderAI(){
+  const p=selP(); const c=document.getElementById('tabContent'); if(!p||!c) return;
+  const savedKey=getApiKey();
+  const masked=savedKey?savedKey.substr(0,10)+'...':'未設定';
+  const resultHtml=S.aiLoading
+    ?`<div class="ai-loading">&#8987; AI分析中です...</div>`
+    :S.aiResult
+      ?`<div class="ai-result">${formatAI(S.aiResult)}<div class="ai-note">※ AIによる参考情報です。臨床判断は必ず医師・専門家が行ってください。</div></div>`:'';
+  c.innerHTML=`
+    <div class="ai-settings-card">
+      <div class="ai-s-head"><span class="ai-s-title">&#128272; Anthropic APIキー設定</span><span style="font-size:11px;color:#aaa">${esc(masked)}</span></div>
+      <div class="ai-key-row">
+        <input type="password" id="ai-key-input" placeholder="sk-ant-..." value="${esc(savedKey)}">
+        <button class="btn btn-ghost btn-sm" onclick="saveApiKey()">保存</button>
+        <span id="ai-save-msg" style="font-size:11px;color:var(--success);min-width:70px"></span>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:#aaa">キーはこのブラウザのみに保存されます</div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <span style="font-size:11px;font-weight:700;color:#666">分析に使用する患者情報</span>
+      <button class="btn btn-ghost btn-sm" onclick="copyPatientInfo()" style="display:flex;align-items:center;gap:4px">
+        <span style="font-size:13px">&#128203;</span> クリップボードにコピー
+      </button>
+    </div>
+    <div id="copy-msg" style="display:none;background:#dcfce7;border:1px solid #86efac;color:#15803d;border-radius:5px;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:8px;text-align:center">
+      コピーしました！ChatGPTやClaudeに貼り付けてください
+    </div>
+    <div class="ai-ctx">${esc(buildCtx(p))}</div>
+    <button class="ai-run-btn" onclick="runAI()" ${S.aiLoading?'disabled':''}>${S.aiLoading?'&#8987; 分析中...':'&#129302; AI臨床アシスタントで分析する'}</button>
+    ${resultHtml}`;
+}
+function formatAI(text){
+  const parts=text.split(/(【[^】]+】)/g);
+  let html='';
+  for(let i=0;i<parts.length;i++){
+    const part=parts[i];
+    if(/^【[^】]+】$/.test(part)&&i+1<parts.length){
+      html+=`<div class="ai-sec"><div class="ai-sec-title">${esc(part)}</div><div class="ai-sec-body">${esc(parts[i+1].trim()).replace(/\n/g,'<br>')}</div></div>`;
+      i++;
+    } else if(part.trim()){
+      html+=`<div style="margin-bottom:8px">${esc(part.trim()).replace(/\n/g,'<br>')}</div>`;
+    }
+  }
+  return html||esc(text).replace(/\n/g,'<br>');
+}
+
+// ================================================================
+// RENDER SUMMARY
+// ================================================================
+function buildSummaryText(p){
+  const lines=[];
+  lines.push('━━━ 入院サマリ ━━━');
+  lines.push(`患者: ${p.name}　病室: ${p.room||'—'}　入院日: ${p.date||'—'}`);
+  const age=p.birthdate?` (${calcAge(p.birthdate)})`:'' ;
+  const bmi=p.height&&p.weight?`  BMI: ${calcBMI(p.height,p.weight)}`:'';
+  if(p.birthdate||p.height||p.weight)
+    lines.push(`生年月日: ${p.birthdate||'—'}${age}  身長: ${p.height?p.height+'cm':'—'}  体重: ${p.weight?p.weight+'kg':'—'}${bmi}`);
+  if(p.adl) lines.push(`ADL: ${p.adl}`);
+  if(p.kpName||p.kpRel) lines.push(`キーパーソン: ${p.kpName||'—'}（${p.kpRel||'—'}）`);
+  lines.push('');
+  lines.push(`【診断名】\n${p.diag||'—'}`);
+  if(p.pastHistory) lines.push(`\n【既往歴】\n${p.pastHistory}`);
+  if(p.allergies)   lines.push(`\n【アレルギー】\n${p.allergies}`);
+  if(p.familyHistory) lines.push(`\n【家族歴】\n${p.familyHistory}`);
+  const meds=p.tasks.filter(t=>t.cat==='内服薬');
+  if(meds.length){ lines.push(`\n【内服薬タスク】`); meds.forEach(t=>lines.push(`  ・${t.text}`)); }
+  if(p.labs&&p.labs.length){
+    lines.push('\n【最新検査値】');
+    const byName={};
+    p.labs.forEach(lv=>{ if(!byName[lv.name]||lv.date>=byName[lv.name].date) byName[lv.name]=lv; });
+    Object.entries(byName).forEach(([name,lv])=>{
+      const flag=getFlag(name,lv.val);
+      const ref=LAB_REF[name];
+      const rng=ref?` (基準: ${ref.lo??'?'}-${ref.hi??'?'} ${ref.unit})`:'';
+      lines.push(`  ${name}: ${lv.val}${lv.unit?' '+lv.unit:''}${rng}${flag?` [${flag}]`:''}`);
+    });
+  }
+  if(p.ivLines&&p.ivLines.length){
+    lines.push('\n【点滴・輸液詳細】');
+    p.ivLines.forEach(iv=>{
+      const parts=[iv.drug];
+      if(iv.dose) parts.push(iv.dose);
+      if(iv.rate) parts.push(`${iv.rate}mL/h`);
+      if(iv.start) parts.push(`開始 ${iv.start}`);
+      if(iv.end) parts.push(`終了予定 ${iv.end}`);
+      lines.push(`  ・${parts.join('  ')}`);
+    });
+  }
+  if(p.medications&&p.medications.length){
+    lines.push('\n【内服薬詳細】');
+    p.medications.forEach(med=>{
+      const timing=[med.am&&'朝',med.noon&&'昼',med.pm&&'夕',med.bed&&'眠前'].filter(Boolean).join('・');
+      lines.push(`  ・${med.drug}${med.dose?` ${med.dose}`:''}${timing?` (${timing})`:''}`);
+    });
+  }
+  if(p.physicalFindings&&p.physicalFindings.trim()) lines.push(`\n【身体所見】\n${p.physicalFindings.trim()}`);
+  if(p.subjective&&p.subjective.trim()) lines.push(`\n【S情報（患者の訴え）】\n${p.subjective.trim()}`);
+  if(p.memo&&p.memo.trim()) lines.push(`\n【メモ】\n${p.memo.trim()}`);
+  return lines.join('\n');
+}
+
+function renderSummary(){
+  const p=selP(); const c=document.getElementById('tabContent'); if(!p||!c) return;
+  const text=buildSummaryText(p);
+  // Structured display
+  const age=p.birthdate?` (${calcAge(p.birthdate)})`:'' ;
+  const bmi=p.height&&p.weight?calcBMI(p.height,p.weight):'';
+  const byName={};
+  (p.labs||[]).forEach(lv=>{ if(!byName[lv.name]||lv.date>=byName[lv.name].date) byName[lv.name]=lv; });
+  const labRows=Object.entries(byName).map(([name,lv])=>{
+    const flag=getFlag(name,lv.val);
+    const cls=flag?(flag==='HH'||flag==='LL'?'color:var(--danger);font-weight:700':flag==='H'?'color:#ef4444;font-weight:700':'color:#1d4ed8;font-weight:700'):'';
+    return `<div class="summary-row"><span class="summary-key">${esc(name)}</span><span class="summary-val" style="${cls}">${lv.val} ${esc(lv.unit||'')}${flag?` [${flag}]`:''}</span></div>`;
+  }).join('');
+  const medRows=(p.tasks||[]).filter(t=>t.cat==='内服薬').map(t=>`<div class="summary-row"><span class="summary-val">・${esc(t.text)}</span></div>`).join('');
+  c.innerHTML=`
+  <div class="summary-copy-bar">
+    <span id="sum-copy-msg" style="display:none;font-size:12px;color:var(--success);font-weight:600">コピーしました！</span>
+    <button class="btn btn-primary" onclick="copySummary()">&#128203; サマリをコピー</button>
+  </div>
+  <div style="display:grid;gap:10px">
+    <div class="summary-section">
+      <div class="summary-section-title">患者基本情報</div>
+      <div class="summary-row"><span class="summary-key">患者名</span><span class="summary-val" style="font-weight:700">${esc(p.name)}</span></div>
+      <div class="summary-row"><span class="summary-key">病室</span><span class="summary-val">${esc(p.room||'—')}</span></div>
+      <div class="summary-row"><span class="summary-key">診断名</span><span class="summary-val">${esc(p.diag||'—')}</span></div>
+      <div class="summary-row"><span class="summary-key">入院日</span><span class="summary-val">${esc(p.date||'—')}</span></div>
+      ${p.birthdate?`<div class="summary-row"><span class="summary-key">生年月日</span><span class="summary-val">${esc(p.birthdate)}${age?` <strong>${esc(age)}</strong>`:''}</span></div>`:''}
+      ${(p.height||p.weight)?`<div class="summary-row"><span class="summary-key">身体</span><span class="summary-val">${p.height?p.height+'cm':'—'} / ${p.weight?p.weight+'kg':'—'}${bmi?` BMI <strong>${bmi}</strong>`:''}</span></div>`:''}
+      ${p.adl?`<div class="summary-row"><span class="summary-key">ADL</span><span class="summary-val">${esc(p.adl)}</span></div>`:''}
+      ${p.kpName?`<div class="summary-row"><span class="summary-key">キーパーソン</span><span class="summary-val">${esc(p.kpName)}${p.kpRel?`（${esc(p.kpRel)}）`:''}</span></div>`:''}
+    </div>
+    ${p.pastHistory?`<div class="summary-section"><div class="summary-section-title">既往歴</div><div style="font-size:12px;white-space:pre-wrap;line-height:1.7;color:var(--g800)">${esc(p.pastHistory)}</div></div>`:''}
+    ${p.allergies?`<div class="summary-section"><div class="summary-section-title" style="color:var(--danger)">アレルギー</div><div style="font-size:12px;white-space:pre-wrap;color:var(--danger);font-weight:600">${esc(p.allergies)}</div></div>`:''}
+    ${p.familyHistory?`<div class="summary-section"><div class="summary-section-title">家族歴</div><div style="font-size:12px;white-space:pre-wrap;line-height:1.7;color:var(--g800)">${esc(p.familyHistory)}</div></div>`:''}
+    ${medRows?`<div class="summary-section"><div class="summary-section-title">内服薬タスク</div>${medRows}</div>`:''}
+    ${labRows?`<div class="summary-section"><div class="summary-section-title">最新検査値</div>${labRows}</div>`:''}
+    ${(p.ivLines&&p.ivLines.length)?`<div class="summary-section"><div class="summary-section-title">点滴・輸液詳細</div>${(p.ivLines||[]).map(iv=>{const pts=[iv.drug];if(iv.dose)pts.push(iv.dose);if(iv.rate)pts.push(iv.rate+'mL/h');if(iv.start)pts.push('開始 '+iv.start);if(iv.end)pts.push('終了予定 '+iv.end);return`<div class="summary-row"><span class="summary-val">・${esc(pts.join('  '))}</span></div>`;}).join('')}</div>`:''}
+    ${(p.medications&&p.medications.length)?`<div class="summary-section"><div class="summary-section-title">内服薬詳細</div>${(p.medications||[]).map(med=>{const t=[med.am&&'朝',med.noon&&'昼',med.pm&&'夕',med.bed&&'眠前'].filter(Boolean).join('・');return`<div class="summary-row"><span class="summary-key">${esc(med.drug)}</span><span class="summary-val">${med.dose?esc(med.dose):'—'}<span style="color:var(--g500);margin-left:8px">${t||'—'}</span></span></div>`;}).join('')}</div>`:''}
+    ${p.physicalFindings&&p.physicalFindings.trim()?`<div class="summary-section"><div class="summary-section-title">身体所見</div><div style="font-size:12px;white-space:pre-wrap;line-height:1.7;color:var(--g800)">${esc(p.physicalFindings.trim())}</div></div>`:''}
+    ${p.subjective&&p.subjective.trim()?`<div class="summary-section"><div class="summary-section-title" style="color:var(--warning)">S情報（患者の訴え）</div><div style="font-size:12px;white-space:pre-wrap;line-height:1.7;color:var(--g800)">${esc(p.subjective.trim())}</div></div>`:''}
+    ${p.memo&&p.memo.trim()?`<div class="summary-section"><div class="summary-section-title">メモ</div><div style="font-size:12px;white-space:pre-wrap;line-height:1.7;color:var(--g800)">${esc(p.memo.trim())}</div></div>`:''}
+  </div>`;
+}
+
+async function copySummary(){
+  const p=selP(); if(!p) return;
+  const text=buildSummaryText(p);
+  try { await navigator.clipboard.writeText(text); }
+  catch(e){ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }
+  const el=document.getElementById('sum-copy-msg');
+  if(el){ el.style.display='inline'; setTimeout(()=>{ el.style.display='none'; },2500); }
+}
+
+// ================================================================
+// RENDER MEMO
+// ================================================================
+function renderMemo(){
+  const p=selP(); const c=document.getElementById('tabContent'); if(!p||!c) return;
+  c.innerHTML=`<div style="display:flex;flex-direction:column;gap:12px">
+    <div style="background:#fff;border:1px solid var(--g200);border-radius:8px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.05)">
+      <div style="font-size:11px;font-weight:700;color:#2980b9;margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">身体所見</div>
+      <textarea class="memo-area" id="physFindArea" placeholder="体温・血圧・脈拍・呼吸・SpO2・意識・胸腹部所見など…" oninput="savePhysicalFindings()" style="min-height:120px">${esc(p.physicalFindings||'')}</textarea>
+    </div>
+    <div style="background:#fff;border:1px solid var(--g200);border-radius:8px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.05)">
+      <div style="font-size:11px;font-weight:700;color:#e67e22;margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">S情報（患者の訴え）</div>
+      <textarea class="memo-area" id="subjectiveArea" placeholder="患者・家族からの訴え、自覚症状など…" oninput="saveSubjective()" style="min-height:100px">${esc(p.subjective||'')}</textarea>
+    </div>
+    <div style="background:#fff;border:1px solid var(--g200);border-radius:8px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.05)">
+      <div style="font-size:11px;font-weight:700;color:#888;margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">メモ</div>
+      <textarea class="memo-area" id="memoArea" placeholder="自由にメモを入力…" oninput="saveMemo()">${esc(p.memo||'')}</textarea>
+      <div style="margin-top:5px;font-size:11px;color:#bbb">入力と同時に自動保存されます</div>
+    </div>
+  </div>`;
+}
+
+// ================================================================
+// INIT
+// ================================================================
+load(); render();
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
+</script>
+</body>
+</html>
