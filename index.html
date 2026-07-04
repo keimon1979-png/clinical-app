@@ -6684,14 +6684,24 @@ async function syncSetup(){
       try{ remote=await decryptSync(f.content,cfg.pass); }
       catch(e){ setSyncStatus('error','復号できません。他の端末と同じ合言葉を入力してください'); renderSyncModal(); return; }
       setSyncCfg({enabled:true,lastSha:f.sha});
-      if(!S.patients.length||(remote.updatedAt||0)>=(getMeta().updatedAt||0)){
+      const remoteN=(remote.patients||[]).length;
+      const localN=S.patients.length;
+      if(!localN&&remoteN){
         applyRemoteData(remote);
         showToast('☁️ クラウドのデータを取り込みました');
+      }else if(!remoteN){
+        setMeta({updatedAt:Date.now()});
+        await syncPushNow();
+        showToast('☁️ この端末のデータをクラウドへ保存しました');
       }else{
-        if(confirm('クラウドに別のデータがあります。\n\n［OK］クラウドの内容を取り込む（推奨・この端末の内容は上書き）\n［キャンセル］この端末の内容でクラウドを上書きする')){
+        // 両方にデータあり → 初回は必ず確認（どちらを正とするか）
+        if(confirm(`クラウドに${remoteN}名、この端末に${localN}名の患者データがあります。どちらを残しますか？\n\n［OK］クラウドの${remoteN}名を取り込む（この端末の${localN}名は消えます）\n［キャンセル］この端末の${localN}名でクラウドを上書きする（クラウドの${remoteN}名は消えます）\n\n※不安な場合は一度キャンセルし、💾保存でバックアップを取ってから再設定してください`)){
           applyRemoteData(remote);
+          showToast('☁️ クラウドのデータを取り込みました');
         }else{
+          setMeta({updatedAt:Date.now()});
           await syncPushNow();
+          showToast('☁️ この端末のデータでクラウドを上書きしました');
         }
       }
       setSyncStatus('ok','☁ 同期済み');
