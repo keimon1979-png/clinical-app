@@ -8095,11 +8095,28 @@ function erDeleteCase(id){
 }
 function erCase(){ return (S.erCases||[]).find(c=>c.id===S.erCaseId); }
 function erProto(c){ return ER_PROTOCOLS.find(x=>x.key===c.key); }
-function erToggle(itemKey){
+function erToggle(itemKey,ev){
   const c=erCase(); if(!c) return;
-  if(c.checks[itemKey]) delete c.checks[itemKey];
-  else c.checks[itemKey]=nowHM();
-  save(); renderMain();
+  const on=!c.checks[itemKey];
+  const now=nowHM();
+  if(on) c.checks[itemKey]=now; else delete c.checks[itemKey];
+  save();
+  // スクロール位置を保つため、押した項目だけをその場で更新（全体再描画しない）
+  const el=ev&&ev.currentTarget;
+  if(!el){ renderMain(); return; }
+  el.classList.toggle('er-done',on);
+  const chk=el.querySelector('.smart-chk');
+  if(chk){ chk.classList.toggle('on',on); chk.textContent=on?'✓':''; }
+  let ts=el.querySelector('.er-item-ts');
+  if(on){ if(!ts){ ts=document.createElement('span'); ts.className='er-item-ts'; el.appendChild(ts); } ts.textContent=now; }
+  else if(ts){ ts.remove(); }
+  // セクションの件数を更新
+  const sk=itemKey.slice(0,itemKey.lastIndexOf('_'));
+  const cntEl=document.querySelector(`[data-ercount="${sk}"]`);
+  if(cntEl){ const done=Object.keys(c.checks).filter(k=>k.startsWith(sk+'_')).length; cntEl.textContent=`${done}/${cntEl.dataset.ertotal}`; }
+  // ヘッダの進捗を更新
+  const pg=erCaseProgress(c);
+  const hp=document.getElementById('erProgress'); if(hp) hp.textContent=`${pg.done}/${pg.total}`;
 }
 function erSaveTime(k,val){ const c=erCase(); if(c){ c.times[k]=val; save(); renderMain(); } }
 function erSaveMemo(val){ const c=erCase(); if(c){ c.memo=val; save(); } }
@@ -8246,14 +8263,14 @@ function renderER(area){
     const rows=items.map((it,i)=>{
       const key=`${sk}_${i}`, t=c.checks[key];
       if(t) done++;
-      return `<div class="er-item${t?' er-done':''}" onclick="erToggle('${key}')">
+      return `<div class="er-item${t?' er-done':''}" onclick="erToggle('${key}',event)">
         <span class="smart-chk${t?' on':''}">${t?'✓':''}</span>
         <span class="er-item-tx">${esc(it)}</span>
         ${t?`<span class="er-item-ts">${esc(t)}</span>`:''}
       </div>`;
     }).join('');
     return `<div class="sec-card" style="border-left:4px solid ${color}">
-      <div class="sec-head"><span>${label} <span class="sec-cnt">${done}/${items.length}</span></span></div>
+      <div class="sec-head"><span>${label} <span class="sec-cnt" data-ercount="${sk}" data-ertotal="${items.length}">${done}/${items.length}</span></span></div>
       ${rows}
     </div>`;
   }).join('');
@@ -8262,7 +8279,7 @@ function renderER(area){
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <button class="btn btn-ghost btn-sm" onclick="erBackHome()">← ER一覧</button>
         <h2 style="color:var(--g800);font-size:17px">${pr.icon} ${esc(pr.label)}</h2>
-        <span class="sec-cnt">${pg.done}/${pg.total}</span>
+        <span class="sec-cnt" id="erProgress">${pg.done}/${pg.total}</span>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-ghost btn-sm" onclick="erToPatient()" title="入院になったら患者リストへ引き継ぐ">🏥 患者として登録</button>
